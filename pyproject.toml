@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dna-storage-simulator"
+version = "0.1.0"
+description = "Simulador de correcao de erros em armazenamento de dados em DNA: analise comparativa entre MAFFT e Reed-Solomon"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Paulo Vinicius de Oliveira Silva" }]
+keywords = ["dna-storage", "error-correction", "mafft", "reed-solomon", "bioinformatics"]
+
+dependencies = [
+    "numpy>=2.1",
+    "reedsolo>=1.7.0",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "streamlit>=1.38",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.6",
+]
+
+[project.urls]
+Repository = "https://github.com/opaulovina/dna-storage-simulator"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
