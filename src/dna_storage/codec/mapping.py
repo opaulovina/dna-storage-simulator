@@ -30,7 +30,7 @@ def bases_to_bytes(sequence: str) -> bytes:
         )
 
     data = bytearray()
-    for start in range(0, len(sequence), BASES_PER_BYTE): 
+    for start in range(0, len(sequence), BASES_PER_BYTE):
         byte = 0
         #para cada base na sequência, obtém o valor correspondente e atualiza o byte
         for base in sequence[start : start + BASES_PER_BYTE]:
