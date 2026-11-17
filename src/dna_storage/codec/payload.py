@@ -14,6 +14,8 @@ PAYLOAD_LENGTH = SEQUENCE_LENGTH - INDEX_LENGTH
 BYTES_PER_SEQUENCE = PAYLOAD_LENGTH // BASES_PER_BYTE
 
 
+# divide os dados em blocos de BYTES_PER_SEQUENCE bytes, adiciona zeros se necessário (A), e
+# converte cada bloco em uma sequência de bases com índice
 def encode(data: bytes) -> list[str]:
     sequences = []
     for start in range(0, len(data), BYTES_PER_SEQUENCE):
@@ -26,6 +28,8 @@ def encode(data: bytes) -> list[str]:
     return sequences
 
 
+# converte as sequências de bases em bytes, verifica se todas as sequências estão presentes e
+# retorna os primeiros 'size' bytes
 def decode(sequences: list[str], size: int) -> bytes:
     chunks = {}
     for sequence in sequences:
@@ -36,8 +40,17 @@ def decode(sequences: list[str], size: int) -> bytes:
 
     count = math.ceil(size / BYTES_PER_SEQUENCE)
     data = bytearray()
+    # verifica se todas as sequências estão presentes, caso contrário levanta um erro
     for index in range(count):
         if index not in chunks:
             raise ValueError(f"sequência de índice {index} ausente")
         data.extend(chunks[index])
+    return bytes(data[:size])
+
+
+def rebuild(sequences: list[str], size: int) -> bytes:
+    data = bytearray()
+    for sequence in sequences:
+        payload = sequence[INDEX_LENGTH:SEQUENCE_LENGTH].ljust(PAYLOAD_LENGTH, "A")
+        data.extend(bases_to_bytes(payload))
     return bytes(data[:size])

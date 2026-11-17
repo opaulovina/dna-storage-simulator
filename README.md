@@ -22,11 +22,17 @@ ruff check .
 ## Validation against Xie et al. (2023)
 
 Condition A (MAFFT) is checked against the behaviour reported by Xie et al. (2023), using the
-same file size (140 sequences of 120 nt), I:D:S ratios, error rates and sequencing depths:
+same sequence layout (120 nt: 8 nt index + 112 nt payload), I:D:S ratios, error rates and
+sequencing depths. The input is the English abstract of the monograph (`data/abstract.txt`):
 
 ```bash
-python experiments/validate_xie.py data/the_grandmother.txt
+python experiments/validate_xie.py data/abstract.txt
 ```
 
 The raw results, the run environment and a heatmap are written to
 `results/validation_xie.csv`, `results/validation_xie.json` and `results/validation_xie.png`.
+
+## Design decisions
+
+Every scope and design decision, with its source, is listed (in Portuguese) in
+[`docs/ESCOPO.txt`](docs/ESCOPO.txt).

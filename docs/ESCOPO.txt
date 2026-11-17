@@ -1,0 +1,202 @@
+ESCOPO E DECISÕES DO SIMULADOR
+==============================
+
+Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na monografia.
+"Decisão nossa" = a referência não define; escolhemos e precisamos declarar.
+
+
+1. CODIFICAÇÃO (arquivo -> DNA)
+-------------------------------
+
+1.1 Mapeamento 00-A, 01-T, 10-G, 11-C, sem restrições (sem evitar homopolímeros, sem controlar GC).
+    Por quê: toda a correção fica a cargo dos algoritmos comparados.
+    Fonte: Xie et al. (2023); monografia 2.1.
+
+1.2 Cada sequência tem 120 bases: 8 de índice + 112 de dados (28 bytes).
+    Fonte: Xie et al. (2023); monografia 2.1 e Figura 1b.
+
+1.3 O índice vem antes dos dados e é escrito em base 4 (8 bases = até 65.536 sequências,
+    cerca de 1,8 MB por arquivo).
+    Por quê: as moléculas ficam misturadas; o índice diz a ordem.
+    Fonte: Figura 1b; Organick et al. (2018). Limite de tamanho: decisão nossa.
+
+1.4 Sem primers.
+    Por quê: acesso aleatório não faz parte da simulação.
+    Fonte: monografia, Figura 1b.
+
+1.5 O último bloco é completado com bytes zero. O tamanho real do arquivo fica guardado fora do
+    DNA (metadado).
+    Por quê: guardar o tamanho dentro do DNA criaria um ponto único de falha.
+    Fonte: decisão nossa; declarar como simplificação.
+
+1.6 Sem embaralhamento (XOR com sequência pseudoaleatória).
+    Por quê: Organick embaralha, mas Xie não; seguimos o esquema de Xie.
+    Fonte: Organick et al. (2018); Xie et al. (2023). Declarar.
+
+
+2. CANAL DE ERRO
+----------------
+
+2.1 Cada base sofre erro com probabilidade p (a "taxa de erro por base").
+    Fonte: monografia 4.3. Contagem fixa de erros por leitura foi descartada.
+
+2.2 O tipo do erro é sorteado pela proporção I:D:S (padrão 1:1:1; também 1:1:2).
+    Posição e tipo uniformes.
+    Fonte: Xie et al. (2023); monografia 4.3.
+
+2.3 Substituição troca por uma das outras 3 bases; inserção põe uma base sorteada antes da
+    original; deleção apaga a base.
+    Fonte: decisão nossa (Xie diz apenas "uniformly at random").
+
+2.4 Profundidade fixa: toda molécula recebe o mesmo número de leituras. Nenhuma molécula se perde.
+    Consequência: não há "erasures"; a capacidade do RS de recuperar moléculas perdidas não é
+    exercitada. Declarar como limitação.
+    Fonte: monografia 4.3.
+
+2.5 Agrupamento perfeito: o simulador sabe de qual sequência veio cada leitura.
+    Fonte: Xie et al. (2023), "we assume that all reads have been clustered correctly".
+
+2.6 Semente obrigatória e gerador de sorteios próprio. Mesma semente = mesmas leituras.
+    Fonte: monografia 4.6 e 5.4.
+
+2.7 O ruído é gerado uma vez e as duas condições recebem as mesmas leituras. As moléculas de
+    paridade da Condição B ficam no fim da lista, então as leituras das moléculas de dados são
+    idênticas para A e B.
+    Fonte: monografia 5.1. A técnica da paridade no fim é decisão nossa.
+
+
+3. CONDIÇÃO A (MAFFT)
+---------------------
+
+3.1 MAFFT v7.505, estratégia FFT-NS-2, escrita explicitamente (--retree 2 --maxiterate 0).
+    Nunca --auto, porque ele pode trocar de estratégia conforme o tamanho dos dados.
+    Fonte: Xie et al. (2023); parâmetros no manual do MAFFT (fora do corpus).
+
+3.2 O MAFFT é um programa em C. O Python o executa como programa externo (subprocesso),
+    entregando as leituras em FASTA pela entrada padrão.
+    Fonte: monografia 5.2.
+
+3.3 Consenso: voto por coluna do alinhamento. A lacuna (-) também vota; se ela vence, a coluna
+    sai. Empate: vence o símbolo da primeira leitura.
+    Fonte: monografia 2.4 ("símbolo mais frequente"); Xie fala em "voting". Tratamento da lacuna
+    e do empate: decisão nossa.
+
+3.4 O consenso pode sair com tamanho diferente de 120. Não é erro: a métrica decide.
+
+
+4. CONDIÇÃO B (REED-SOLOMON HÍBRIDO)
+------------------------------------
+
+4.1 Arquitetura de Organick: matriz em que cada molécula é uma coluna e cada um dos 28 bytes do
+    payload é uma linha; cada linha é uma palavra-código Reed-Solomon (código externo).
+    Fonte: Organick et al. (2018); Sharma et al. (2024); monografia 2.3.
+
+4.2 Símbolos de 1 byte (biblioteca reedsolo). Uma palavra-código tem no máximo 255 símbolos, então
+    arquivos grandes viram blocos de até 221 moléculas de dados + paridade.
+    Adaptação: Organick usava símbolos de 16 bits e palavras maiores. Declarar.
+    Fonte: monografia 2.3 (corpo de 256 elementos).
+
+4.3 Redundância de 15% = moléculas de paridade / moléculas de dados (140 dados -> 21 paridade).
+    Fonte: Organick et al. (2018): "redundancy set to 15%, 87% ... raw data, 13% ... redundant".
+    Configurável. Com 0, sobra só o BMA (permite medir quanto o RS acrescenta).
+
+4.4 A Condição B recebe mais grupos que a A (161 contra 140), cada um com a mesma profundidade.
+    Isso é o custo da redundância lógica: 15% a mais de moléculas sintetizadas e de leituras.
+    Densidade: A = 1,87 bits/nt; B = 1,62 bits/nt (só payload e índice, sem primers).
+    Fonte: monografia 1.2, 2.1 e 4.2. Reportar junto com os resultados.
+
+4.5 BMA com ponteiros: voto por pluralidade; quem concorda avança 1; quem discorda testa três
+    hipóteses contra as próximas 4 bases do consenso (substituição: avança 1; deleção: fica;
+    inserção: avança 2). Empate entre hipóteses: substituição, depois deleção, depois inserção.
+    A saída tem sempre 120 bases. Sem nenhum voto: A.
+    Fonte: Organick et al. (2018); Sharma et al. (2024) VII-A; monografia 2.3 e Quadro 1.
+    Janela de 4 e regras de desempate: decisão nossa (o código aberto do Toolkit de Sharma olha
+    até 4 bases à frente).
+
+4.6 O código de Organick é proprietário. O BMA e a matriz foram implementados por nós a partir da
+    descrição do artigo; o Toolkit de Sharma foi usado como referência de leitura, não copiado.
+    Fonte: monografia 3.1 e 3.2.
+
+4.7 O índice não é protegido pelo RS (em Organick o endereço é um prefixo fora do código).
+    Um índice errado faz a sequência contar como não recuperada, como na Condição A.
+
+4.8 Linha da matriz com erros demais: fica como veio, e a falha aparece na métrica.
+
+4.9 Double-sided BMA e NW-POA: variantes exploratórias, se der tempo (etapa 10.1).
+
+
+5. MÉTRICAS
+-----------
+
+5.1 Taxa de recuperação: fração das sequências de dados que voltaram idênticas à original.
+    Fonte: monografia 4.4.
+
+5.2 Distância de Hamming normalizada, sempre depois de alinhamento global (Needleman-Wunsch,
+    custo 1 para substituição, inserção e deleção). Valor = diferenças / comprimento do
+    alinhamento (entre 0 e 1). Entre alinhamentos de mesmo custo, usa-se o mais curto.
+    Com só substituições, é igual à Hamming comum.
+    Fonte: monografia 2.2 e 4.4. Regra de desempate: decisão nossa.
+
+5.3 Tempo: relógio de parede (time.perf_counter) da correção inteira, incluindo o MAFFT.
+
+5.4 Memória: pico de memória residente que a correção acrescenta ao processo Python, mais o pico
+    dos processos externos (MAFFT). Só é válido medindo cada execução num processo novo.
+    Fonte: monografia 4.4. Método: decisão nossa.
+
+5.5 Assimetria de linguagem: MAFFT é C chamado por subprocesso (com ~0,14 s de partida por
+    chamada); o BMA e o RS são Python. Declarar ao comparar tempos.
+
+5.6 Arquivo recuperado (download): remontado na ordem das sequências; trechos de sequências com
+    tamanho errado são cortados ou completados com A (bits zero). O arquivo sempre sai com o
+    tamanho certo e a corrupção fica visível. Não entra nas métricas.
+    Fonte: monografia 5.1 e 5.6. Regra: decisão nossa (ponto A-07).
+
+
+6. VALIDAÇÃO CONTRA XIE ET AL. (2023)
+-------------------------------------
+
+6.1 Arquivo: o abstract em inglês da própria monografia (texto ASCII real).
+    Por quê: Xie não informa a origem do arquivo "The Grandmother". O Project Gutenberg, onde está
+    o conto homônimo de Andersen, ficou fora do ar durante o trabalho. Outro texto com o mesmo
+    nome encontrado (R. K. Narayan) é protegido por direitos autorais e não poderia ser publicado
+    no repositório.
+    O arquivo é cortado no último múltiplo de 28 bytes (1.484 bytes = 53 sequências), para não
+    criar uma sequência com preenchimento de zeros (um homopolímero longo de A, que prejudica o
+    alinhamento e não existe no arquivo de Xie, de 140 sequências exatas).
+
+6.2 8 repetições por ponto (sementes 0 a 7): 53 x 8 = 424 sequências por ponto, comparável às 420
+    de 3 repetições com 140 sequências. Xie usou 100 repetições.
+
+6.3 Grade: taxas de 2% a 20% (de 2 em 2), 25% e 30%; profundidades 5, 10, 20, 30, 50, 70, 100 e
+    200; proporções 1:1:1 e 1:1:2.
+
+6.4 Xie não define "recovery accuracy". O texto sugere medida por base ("correct 90% of the
+    errors"). Por isso:
+    - afirmações de 100% são comparadas com a taxa de recuperação (as duas medidas coincidem);
+    - afirmações de queda: a nossa medida é mais dura e deve cair pelo menos tanto quanto;
+    - afirmações de 90/95/99%: comparadas com 1 - Hamming, declarando a interpretação.
+
+
+7. ENGENHARIA E REPRODUTIBILIDADE
+---------------------------------
+
+7.1 Python 3.12, pacote instalável (pasta src/), código em inglês, mensagens em português.
+7.2 Testes automáticos (pytest) para cada módulo e verificação de estilo (ruff, linhas até 100).
+7.3 GitHub Actions: a cada push, o GitHub instala tudo (inclusive o MAFFT) numa máquina limpa e
+    roda os testes. Prova que o código funciona fora do computador do autor (monografia 4.6).
+7.4 Cada resultado é salvo com o ambiente: SHA-256 do arquivo de entrada, versões do MAFFT e do
+    Python, processador, grade e repetições (monografia 4.6).
+7.5 Licença MIT; repositório público.
+
+
+8. LIMITAÇÕES A DECLARAR
+------------------------
+
+- Canal idealizado (erros uniformes). Sharma et al. (2024) mostram que reconstruir leituras
+  simuladas assim é bem mais fácil do que reconstruir dados reais.
+- Sem perda de moléculas, então sem erasures (2.4).
+- O BMA conhece o comprimento da sequência (120); o consenso do MAFFT não.
+- A Condição B usa 15% mais moléculas e leituras (4.4).
+- Assimetria C x Python na medida de tempo (5.5).
+- Sem embaralhamento nem restrições de codificação (1.1, 1.6).
+- Arquivo de validação diferente do de Xie (6.1).

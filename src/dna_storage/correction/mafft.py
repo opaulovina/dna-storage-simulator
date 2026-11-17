@@ -8,10 +8,12 @@ GAP = "-"
 FFT_NS_2 = ("--retree", "2", "--maxiterate", "0")
 
 
+# gera o formato FASTA a partir de uma lista de leituras
 def to_fasta(reads: list[str]) -> str:
     return "".join(f">{number}\n{read}\n" for number, read in enumerate(reads))
 
 
+# analisa o formato FASTA e retorna uma lista de leituras
 def parse_fasta(text: str) -> list[str]:
     records = []
     for block in text.split(">")[1:]:
@@ -20,6 +22,8 @@ def parse_fasta(text: str) -> list[str]:
     return records
 
 
+# gera a sequência consenso a partir de um alinhamento múltiplo; a lacuna também vota, e a coluna
+# em que ela vence sai do consenso
 def consensus(alignment: list[str]) -> str:
     bases = []
     for column in zip(*alignment, strict=True):
@@ -29,6 +33,8 @@ def consensus(alignment: list[str]) -> str:
     return "".join(bases)
 
 
+# define a classe MafftCorrector, que herda de Corrector e implementa a correção de erros usando o
+# MAFFT
 class MafftCorrector(Corrector):
     name = "MAFFT"
 

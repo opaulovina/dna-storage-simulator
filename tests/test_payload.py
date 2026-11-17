@@ -9,6 +9,7 @@ from dna_storage.codec.payload import (
     SEQUENCE_LENGTH,
     decode,
     encode,
+    rebuild,
 )
 
 
@@ -76,3 +77,21 @@ def test_sequence_with_wrong_length_is_rejected():
 def test_real_zero_bytes_at_the_end_are_kept():
     data = b"abc" + b"\x00" * 30
     assert decode(encode(data), len(data)) == data
+
+
+def test_rebuild_matches_decode_when_everything_was_recovered():
+    data = random_bytes(1000)
+    assert rebuild(encode(data), len(data)) == decode(encode(data), len(data))
+
+
+def test_rebuild_keeps_the_size_when_sequences_have_the_wrong_length():
+    data = random_bytes(100)
+    sequences = encode(data)
+    sequences[0] = sequences[0][:100]
+    sequences[1] = sequences[1] + "GGGG"
+    rebuilt = rebuild(sequences, len(data))
+    assert len(rebuilt) == len(data)
+    assert rebuilt[BYTES_PER_SEQUENCE * 2 :] == data[BYTES_PER_SEQUENCE * 2 :]
+    assert rebuilt[BYTES_PER_SEQUENCE : BYTES_PER_SEQUENCE * 2] == data[
+        BYTES_PER_SEQUENCE : BYTES_PER_SEQUENCE * 2
+    ]

@@ -16,57 +16,57 @@ import matplotlib.pyplot as plt
 from dna_storage.channel import ChannelConfig, simulate_reads
 from dna_storage.codec.payload import BYTES_PER_SEQUENCE, encode
 from dna_storage.correction.mafft import MafftCorrector
+from dna_storage.metrics import mean_hamming, recovery_rate
 
-SEQUENCES = 140
-FILE_SIZE = SEQUENCES * BYTES_PER_SEQUENCE
+REPETITIONS = 8
 ERROR_RATES = (0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.25, 0.30)
 DEPTHS = (5, 10, 20, 30, 50, 70, 100, 200)
 IDS_RATIOS = ((1, 1, 1), (1, 1, 2))
-FIELDS = ("ids_ratio", "error_rate", "depth", "seed", "sequences", "recovered", "recovery_rate")
+FIELDS = ("ids_ratio", "error_rate", "depth", "seed", "sequences", "recovery_rate", "hamming")
 
 
 def run(sequences, ids_ratio, error_rate, depth, seed):
     config = ChannelConfig(error_rate=error_rate, depth=depth, seed=seed, ids_ratio=ids_ratio)
     recovered = MafftCorrector().correct(simulate_reads(sequences, config))
-    hits = sum(new == old for new, old in zip(recovered, sequences, strict=True))
     return {
         "ids_ratio": ":".join(str(part) for part in ids_ratio),
         "error_rate": error_rate,
         "depth": depth,
         "seed": seed,
         "sequences": len(sequences),
-        "recovered": hits,
-        "recovery_rate": hits / len(sequences),
+        "recovery_rate": recovery_rate(recovered, sequences),
+        "hamming": mean_hamming(recovered, sequences),
     }
 
 
 def load(path):
     data = path.read_bytes()
-    if len(data) < FILE_SIZE:
-        raise SystemExit(
-            f"{path} tem {len(data)} bytes; são necessários {FILE_SIZE} ({SEQUENCES} sequências)"
-        )
-    return data[:FILE_SIZE]
+    whole = len(data) // BYTES_PER_SEQUENCE * BYTES_PER_SEQUENCE
+    if whole == 0:
+        raise SystemExit(f"{path} tem {len(data)} bytes; o mínimo é {BYTES_PER_SEQUENCE}")
+    return data[:whole]
 
 
-def mean_rates(rows):
+def mean_rates(rows, field="recovery_rate"):
     groups = {}
     for row in rows:
         key = (row["ids_ratio"], row["error_rate"], row["depth"])
-        groups.setdefault(key, []).append(row["recovery_rate"])
+        groups.setdefault(key, []).append(row[field])
     return {key: mean(values) for key, values in groups.items()}
 
 
 def summarize(rows, error_rates, depths):
     rates = mean_rates(rows)
+    distances = mean_rates(rows, "hamming")
     for ratio in dict.fromkeys(row["ids_ratio"] for row in rows):
         print(f"\nI:D:S {ratio}")
         for error_rate in error_rates:
             full = [depth for depth in depths if rates[(ratio, error_rate, depth)] == 1]
             first = full[0] if full else "-"
             last = rates[(ratio, error_rate, depths[-1])]
+            accuracy = 1 - distances[(ratio, error_rate, depths[-1])]
             print(f"  {error_rate:>4.0%}: 100% a partir de {first!s:>4}; ", end="")
-            print(f"em {depths[-1]}: {last:.1%}")
+            print(f"em {depths[-1]}: {last:.1%} (bases certas: {accuracy:.1%})")
 
 
 def plot(rows, error_rates, depths, path):
@@ -94,6 +94,8 @@ def environment(path, data, args):
     )
     return {
         "file": path.name,
+        "bytes": len(data),
+        "sequences": len(data) // BYTES_PER_SEQUENCE,
         "sha256": hashlib.sha256(data).hexdigest(),
         "mafft": mafft.stderr.strip(),
         "python": platform.python_version(),
@@ -110,7 +112,7 @@ def environment(path, data, args):
 def main():
     parser = argparse.ArgumentParser(description="Condição A nos parâmetros de Xie et al. (2023)")
     parser.add_argument("file", type=Path)
-    parser.add_argument("--repetitions", type=int, default=3)
+    parser.add_argument("--repetitions", type=int, default=REPETITIONS)
     parser.add_argument("--workers", type=int, default=os.cpu_count())
     parser.add_argument("--error-rates", type=float, nargs="+", default=list(ERROR_RATES))
     parser.add_argument("--depths", type=int, nargs="+", default=list(DEPTHS))
