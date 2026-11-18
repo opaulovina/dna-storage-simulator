@@ -48,6 +48,11 @@ def decode(sequences: list[str], size: int) -> bytes:
     return bytes(data[:size])
 
 
+# rebuild: remonta o arquivo para download na ordem das sequências.
+# sequência curta é completada com A e sequência longa é cortada.
+# o arquivo sai sempre do tamanho certo, com a corrupção visível (numa imagem aparecem os blocos
+# estragados)
+# não entra nas métricas (5.6).
 def rebuild(sequences: list[str], size: int) -> bytes:
     data = bytearray()
     for sequence in sequences:
