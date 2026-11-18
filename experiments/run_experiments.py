@@ -2,11 +2,11 @@ import argparse
 import csv
 import itertools
 import json
-import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import pandas as pd
+import psutil
 
 from dna_storage.experiment import CONDITIONS, Trial, environment, label, run_condition
 
@@ -24,6 +24,7 @@ FIELDS = (
     "hamming",
     "seconds",
     "memory_kib",
+    "workers",
 )
 
 
@@ -64,6 +65,8 @@ def summarize(path):
     print(summary.round(2).to_string())
 
 
+# roda a grade pedida nas duas condições, com "--workers" processos ao mesmo tempo (o padrão é um
+# por núcleo físico), grava cada execução no CSV assim que termina e pula as que já foram feitas
 def main():
     parser = argparse.ArgumentParser(description="Condições A e B sobre o mesmo ruído")
     parser.add_argument("file", type=Path)
@@ -73,7 +76,7 @@ def main():
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--redundancy", type=float, default=0.15)
     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
-    parser.add_argument("--workers", type=int, default=os.cpu_count())
+    parser.add_argument("--workers", type=int, default=psutil.cpu_count(logical=False))
     parser.add_argument("--output", type=Path, default=Path("results/experiments"))
     args = parser.parse_args()
 
@@ -122,7 +125,7 @@ def main():
             writer.writeheader()
         futures = [pool.submit(run_condition, data, trial, condition) for trial, condition in jobs]
         for count, future in enumerate(as_completed(futures), start=1):
-            writer.writerow(future.result())
+            writer.writerow({**future.result(), "workers": args.workers})
             handle.flush()
             print(f"\r{count}/{len(jobs)}", end="", flush=True)
     print()

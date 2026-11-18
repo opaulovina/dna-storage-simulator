@@ -10,13 +10,11 @@ from statistics import mean
 import matplotlib.pyplot as plt
 
 from dna_storage.channel import ChannelConfig, simulate_reads
-from dna_storage.codec.payload import BYTES_PER_SEQUENCE, encode
+from dna_storage.codec.payload import encode
 from dna_storage.correction.mafft import MafftCorrector
 from dna_storage.experiment import environment, label
 from dna_storage.metrics import mean_hamming, recovery_rate
 
-SEQUENCES = 140
-FILE_SIZE = SEQUENCES * BYTES_PER_SEQUENCE
 REPETITIONS = 3
 ERROR_RATES = (0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.25, 0.30)
 DEPTHS = (5, 10, 20, 30, 50, 70, 100, 200)
@@ -39,11 +37,10 @@ def run(sequences, ids_ratio, error_rate, depth, seed):
 
 
 def load(path):
-    text = path.read_bytes()
-    if not text:
+    data = path.read_bytes()
+    if not data:
         raise SystemExit(f"{path} está vazio")
-    copies = FILE_SIZE // len(text) + 1
-    return (text * copies)[:FILE_SIZE]
+    return data
 
 
 def mean_rates(rows, field="recovery_rate"):

@@ -114,13 +114,25 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     Janela de 4 e regras de desempate: decisão nossa (o código aberto do Toolkit de Sharma olha
     até 4 bases à frente).
 
-4.6 O código de Organick é proprietário (seção "Code availability" do artigo: "the custom code
-    is proprietary"). O artigo descreve o método em texto, na seção de métodos de codificação e
-    decodificação e na Figura 2b, sem pseudocódigo. O BMA e a matriz foram implementados por nós a
-    partir dessa descrição; o Toolkit de Sharma foi usado como referência de leitura, não copiado.
-    Diferenças em relação a Organick: símbolos de 8 bits (4.2), sem embaralhamento (1.6), sem o
-    código rotativo que elimina homopolímeros, e regra de decisão do BMA formalizada por nós (4.5).
-    Fonte: Organick et al. (2018); monografia 3.1 e 3.2.
+4.6 Reprodução do Organick: fizemos tudo o que a descrição permite, mas não há como saber se
+    ficou idêntico.
+    - O código de Organick é proprietário. O artigo diz, na seção "Code availability": "the
+      custom code is proprietary".
+    - O método aparece só em texto (seção de métodos de codificação e decodificação) e na
+      Figura 2b, sem pseudocódigo.
+    - O núcleo do BMA segue exatamente a descrição: ponteiros que andam da esquerda para a
+      direita, voto por pluralidade, classificação da divergência em deleção, inserção ou
+      substituição, e ponteiro movido conforme a classificação.
+    - A regra exata da classificação não é dada. O artigo diz apenas: "The classification of
+      mismatches is done by looking at the context around the symbol under consideration in the
+      noisy read". Que contexto, de que tamanho e com que critério de desempate não é dito; por
+      isso a regra é nossa (4.5), e não há como garantir que coincide com a deles.
+    - O Toolkit de Sharma (código aberto da mesma arquitetura) foi lido como referência, não
+      copiado; ele também usa uma regra própria.
+    - Outras diferenças vêm de escolhas da monografia e valem igualmente para A e B: codificação
+      de Xie sem embaralhamento e sem o código rotativo de Organick (1.1, 1.6) e símbolos de 1
+      byte (2.3; Organick usava 16 bits).
+    Fonte: Organick et al. (2018); Sharma et al. (2024); monografia 3.1 e 3.2.
 
 4.7 O índice não é protegido pelo RS (em Organick o endereço é um prefixo fora do código).
     Um índice errado faz a sequência contar como não recuperada, como na Condição A.
@@ -152,8 +164,19 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     descartada.
     Fonte: monografia 4.4. Método: decisão nossa (biblioteca psutil).
 
-5.5 Assimetria de linguagem: MAFFT é C chamado por subprocesso (com ~0,14 s de partida por
-    chamada); o BMA e o RS são Python. Declarar ao comparar tempos.
+5.5 Assimetria de linguagem: MAFFT é C chamado por subprocesso; o BMA e o RS são Python. Abrir o
+    MAFFT custa ~0,14 s por grupo, e isso é cerca de 87% do tempo da Condição A (medido no
+    piloto). O piloto mede essa partida, e os resultados de tempo podem ser apresentados também
+    sem ela ("tempo líquido"). Reescrever o MAFFT em Python foi descartado: deixaria de ser o
+    MAFFT validado contra Xie.
+    Declarar ao comparar tempos. Tempo e memória são métricas secundárias (monografia 4.4: "não
+    respondem à pergunta de pesquisa principal").
+    - Tempo: acrescentei ao piloto a medição da partida do MAFFT. Abrir o programa leva 0,14 s
+      por grupo, e isso é 87% do tempo da Condição A. O alinhamento em si é só uns 13%.
+    - Memória: cada vez que abre, o MAFFT carrega o programa inteiro e as tabelas dele, cerca de
+      26 MB. O BMA reaproveita o Python que já está aberto e precisa só de uns 0,2 MB a mais.
+    (Valores medidos no ambiente de testes; os da máquina dos experimentos ficam em
+    results/pilot.json.)
 
 5.6 Arquivo recuperado (download): remontado na ordem das sequências; trechos de sequências com
     tamanho errado são cortados ou completados com A (bits zero). O arquivo sempre sai com o
@@ -174,6 +197,8 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     é múltiplo de 28, as cópias começam em posições diferentes dos blocos, e as 140 sequências
     são todas distintas. Com agrupamento perfeito, cada sequência é corrigida de forma
     independente, então a repetição do texto não favorece nenhuma condição.
+    O arquivo pronto fica em data/abstract_3920.txt, e é ele que a validação e os experimentos
+    usam (assim o SHA-256 registrado aponta para um arquivo concreto do repositório).
 
 6.2 3 repetições por ponto (sementes 0, 1 e 2): 420 sequências por ponto. Xie usou 100
     repetições; o tempo de execução do MAFFT não permite isso aqui.
@@ -186,6 +211,18 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     - afirmações de 100% são comparadas com a taxa de recuperação (as duas medidas coincidem);
     - afirmações de queda: a nossa medida é mais dura e deve cair pelo menos tanto quanto;
     - afirmações de 90/95/99%: comparadas com 1 - Hamming, declarando a interpretação.
+
+6.5 Resultado da validação (grade completa, 3 repetições): a Condição A reproduz todas as
+    afirmações conferíveis de Xie.
+    - 8% de erro: recuperação completa a partir de 70 leituras (Xie: "only needs 70 reads").
+    - Abaixo de 15%, com 100 leituras, 99,6% ou mais das bases certas (Xie: "more than 95%").
+    - 1:1:2 recupera mais que 1:1:1 em todos os pontos.
+    - Acima de ~16-20%, a recuperação por sequência despenca e mais leituras não ajudam.
+    - Entre 12% e 16%, a recuperação estabiliza a partir de ~70 leituras, como Xie descreve na
+      Fig. 2c ("increasing sequencing depth beyond 60 seems to have negligible effect").
+    - A interpretação que melhor reproduz os números de Xie a 13% (90% com 30 leituras, 99% com
+      60) é "fração dos erros corrigidos" (1 - Hamming / taxa de erro): ~95% com 30 e ~98% com
+      50-70. É inferência nossa; Xie não define a medida.
 
 
 7. ENGENHARIA E REPRODUTIBILIDADE
@@ -213,13 +250,62 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 8.3 Cada execução é gravada no CSV assim que termina. Se o computador desligar, basta rodar de
     novo: o que já foi feito é pulado. O script recusa misturar resultados de arquivos de entrada
     diferentes no mesmo CSV (confere o SHA-256).
-8.4 Várias execuções rodam em paralelo (uma por núcleo). Isso pode alterar o tempo medido; o
-    experimento piloto (etapa 9) compara com execuções isoladas para decidir quantas rodar juntas.
+8.4 [Resultado do piloto na máquina dos experimentos, i5-1135G7, 4 núcleos físicos, 15 GiB:
+    com 4 execuções em paralelo, o tempo de cada uma subiu 68% no MAFFT (13,4 s -> 22,7 s) e
+    159% no RS híbrido (0,77 s -> 1,99 s). Os resultados foram idênticos nos dois modos.
+    Decisão: as grades finais rodam uma execução por vez (--workers 1). A grade do texto cabe em
+    cerca de 2 h.]
+    Várias execuções podem rodar em paralelo (padrão: uma por núcleo físico, não por thread,
+    porque duas threads do mesmo núcleo disputam o processador). Rodar em paralelo deixa cada
+    execução mais lenta: no ambiente de testes, +19% para o MAFFT e +12% para o RS com 2 em
+    paralelo. O piloto (etapa 9) mede isso na máquina dos experimentos. Decisão: se a grade final
+    couber numa noite rodando uma execução por vez, roda assim, e tempo e memória ficam limpos;
+    senão, roda em paralelo para as taxas de recuperação e mede tempo e memória à parte, uma por
+    vez, num subconjunto.
 8.5 A mesma função (run_condition) serve ao modo experimental e, depois, ao Streamlit (5.1).
 8.6 Cada linha do CSV traz também a densidade: bits do arquivo / (moléculas x 120 bases).
+8.7 O ambiente registrado inclui o modelo do processador, núcleos físicos e lógicos, memória
+    total e as versões de todas as bibliotecas usadas (monografia 4.6). As versões exatas também
+    ficam travadas em requirements-lock.txt (monografia 5.7).
 
 
-9. LIMITAÇÕES A DECLARAR
+9. EXPERIMENTO PILOTO E GRADE FINAL
+-----------------------------------
+
+9.1 O piloto roda 8 combinações (taxas 8% e 16%, profundidades 10 e 50, sementes 0 e 1) nas duas
+    condições, primeiro uma por vez e depois em paralelo. Mede: tempo e memória de cada condição,
+    quanto o paralelismo infla o tempo, e quanto tempo a grade final levaria. Também confere se o
+    resultado é idêntico nos dois modos (reprodutibilidade).
+    Fonte: monografia 4.5 ("calibração inicial do simulador").
+
+9.2 Grade final proposta (a confirmar com o piloto na máquina dos experimentos):
+    - taxas: 2% a 20% de 2 em 2, 25% e 30% (atravessa a transição de fase do MAFFT; monografia
+      4.2; cobre a faixa de 5% a 30% da proposta original);
+    - profundidades: 5, 10, 20, 30, 50, 100 (Organick: mediana de 5 leituras; Xie: 50 a 100 como
+      faixa razoável; pontos mais densos onde as condições mais diferem);
+    - proporções: 1:1:1 e 1:1:2 (Xie);
+    - 3 repetições (sementes 0, 1, 2);
+    - total: 432 combinações por condição.
+
+9.3 Arquivo de imagem (monografia 4.5 pede texto e imagem): usar imagem sem compressão (PGM em
+    tons de cinza), de 128 x 128 pixels (16.399 bytes, 586 sequências). A primeira tentativa, com
+    64 x 64 (4 KB), ficou pequena demais para reconhecer o conteúdo, o que inviabiliza a análise
+    visual; 128 x 128 custa cerca de 4 vezes mais por execução, aceitável na grade reduzida (9.4).
+    Por que sem compressão: em formatos comprimidos, um único erro pode impedir a abertura do
+    arquivo inteiro. Lazzarotto, Piguet e Ebrahimi (2025)
+    observam, com JPEG XL, que a decodificação "either produced the decoded image with no errors
+    or else failed to output any image". Sem compressão, cada erro estraga só os pixels daquele
+    trecho, e a análise visual (objetivo da proposta) fica possível. A recomendação de PGM é
+    inferência nossa a partir dessa observação.
+    A imagem é cortada no centro para ficar quadrada antes de reduzir, para não deformar.
+    A foto original não entra no repositório público; só a versão 128 x 128.
+
+9.4 Grade da imagem (reduzida, porque o objetivo é mostrar generalidade e permitir a análise
+    visual, não repetir a curva do texto): taxas 4%, 8%, 12%, 16% e 20%; profundidades 10, 30 e
+    50; proporção 1:1:1; 3 repetições (45 combinações por condição).
+
+
+10. LIMITAÇÕES A DECLARAR
 ------------------------
 
 - Canal idealizado (erros uniformes). Sharma et al. (2024) mostram que reconstruir leituras
@@ -230,3 +316,5 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 - Assimetria C x Python na medida de tempo (5.5).
 - Sem embaralhamento nem restrições de codificação (1.1, 1.6).
 - Arquivo de validação diferente do de Xie (6.1).
+- Tempo medido inclui a partida do MAFFT (~0,14 s por grupo) e pode ser inflado por execuções
+  em paralelo (8.4).

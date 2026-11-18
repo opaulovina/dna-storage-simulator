@@ -1,0 +1,47 @@
+{
+  "file": "abstract_3920.txt",
+  "sha256": "6ab413100b002199f271f116b303d8a5eb76fd405c55adeb0d14c5f0a48b711d",
+  "bytes": 3920,
+  "sequences": 140,
+  "mafft": "v7.505 (2022/Apr/10)",
+  "python": "3.12.3",
+  "packages": {
+    "dna-storage-simulator": "0.1.0",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "matplotlib": "3.11.2",
+    "psutil": "7.2.2",
+    "reedsolo": "1.7.0"
+  },
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.39",
+  "processor": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+  "physical_cores": 4,
+  "logical_cores": 8,
+  "memory_gib": 15.3,
+  "workers": 4,
+  "wall_seconds": {
+    "1": 121.77158134401543,
+    "4": 58.84027505799895
+  },
+  "speedup": 2.06952773799893,
+  "identical_results": true,
+  "final_grid_runs_per_condition": 432,
+  "projection": {
+    "MAFFT": {
+      "seconds_isolated": 13.448005708629353,
+      "seconds_parallel": 22.65831472500213,
+      "inflation": 0.6848828901420438,
+      "memory_kib": 27401,
+      "projected_hours_isolated": 1.6137606850355224,
+      "projected_hours_parallel": 0.7797724357132327
+    },
+    "RS híbrido": {
+      "seconds_isolated": 0.7694119612460781,
+      "seconds_parallel": 1.9905631132496637,
+      "inflation": 1.587122651467371,
+      "memory_kib": 485,
+      "projected_hours_isolated": 0.09232943534952938,
+      "projected_hours_parallel": 0.044613770404838674
+    }
+  }
+}

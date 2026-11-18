@@ -23,14 +23,25 @@ ruff check .
 
 Condition A (MAFFT) is checked against the behaviour reported by Xie et al. (2023), using the
 same sequence layout (120 nt: 8 nt index + 112 nt payload), I:D:S ratios, error rates and
-sequencing depths. The input is the English abstract of the monograph (`data/abstract.txt`):
+sequencing depths. The input is the English abstract of the monograph (`data/abstract.txt`),
+repeated up to 3,920 bytes so that it gives the same 140 sequences used by Xie et al.
+(`data/abstract_3920.txt`):
 
 ```bash
-python experiments/validate_xie.py data/abstract.txt
+python experiments/validate_xie.py data/abstract_3920.txt
 ```
 
 The raw results, the run environment and a heatmap are written to
 `results/validation_xie.csv`, `results/validation_xie.json` and `results/validation_xie.png`.
+
+## Pilot run
+
+Measures, on the current machine, the cost of each condition, whether running several
+experiments in parallel changes the measured time, and how long the final grid would take:
+
+```bash
+python experiments/pilot.py data/abstract_3920.txt
+```
 
 ## Running the experiments
 
@@ -39,7 +50,7 @@ memory are measured in isolation. Results are appended to a CSV as they finish, 
 run can be resumed by repeating the command:
 
 ```bash
-python experiments/run_experiments.py data/abstract.txt \
+python experiments/run_experiments.py data/abstract_3920.txt \
     --error-rates 0.04 0.08 0.12 0.16 0.20 --depths 10 30 50 \
     --ratios 1:1:1 1:1:2 --repetitions 3
 ```

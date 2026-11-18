@@ -1,0 +1,49 @@
+{
+  "file": "abstract.txt",
+  "sha256": "6ab413100b002199f271f116b303d8a5eb76fd405c55adeb0d14c5f0a48b711d",
+  "bytes": 3920,
+  "sequences": 140,
+  "dna_storage": "0.1.0",
+  "reedsolo": "1.7.0",
+  "mafft": "v7.505 (2022/Apr/10)",
+  "python": "3.12.3",
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.39",
+  "processor": "x86_64",
+  "error_rates": [
+    0.02,
+    0.04,
+    0.06,
+    0.08,
+    0.1,
+    0.12,
+    0.14,
+    0.16,
+    0.18,
+    0.2,
+    0.25,
+    0.3
+  ],
+  "depths": [
+    5,
+    10,
+    20,
+    30,
+    50,
+    70,
+    100,
+    200
+  ],
+  "ids_ratios": [
+    [
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      1,
+      2
+    ]
+  ],
+  "repetitions": 3
+}

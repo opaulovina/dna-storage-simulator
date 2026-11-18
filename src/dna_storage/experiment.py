@@ -4,6 +4,9 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from importlib.metadata import version
+from pathlib import Path
+
+import psutil
 
 from dna_storage.channel import ChannelConfig, simulate_reads
 from dna_storage.codec.payload import SEQUENCE_LENGTH, encode
@@ -13,6 +16,7 @@ from dna_storage.correction.reed_solomon import REDUNDANCY, RsHybridCorrector, a
 from dna_storage.metrics import mean_hamming, measure, recovery_rate
 
 CONDITIONS = (MafftCorrector.name, RsHybridCorrector.name)
+PACKAGES = ("dna-storage-simulator", "numpy", "pandas", "matplotlib", "psutil", "reedsolo")
 
 
 @dataclass(frozen=True)
@@ -70,7 +74,17 @@ def run_condition(data: bytes, trial: Trial, condition: str) -> dict:
     }
 
 
-# registra o SHA-256 do arquivo e as versões do MAFFT, Python, reedsolo e do próprio pacote
+def processor() -> str:
+    cpuinfo = Path("/proc/cpuinfo")
+    if cpuinfo.exists():
+        for line in cpuinfo.read_text().splitlines():
+            if line.startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    return platform.processor()
+
+
+# registra o SHA-256 do arquivo, as versões do MAFFT e do Python, o modelo do processador, a
+# quantidade de nucleos fisicos e logicos, a memoria total e a versão de cada biblioteca
 def environment(data: bytes) -> dict:
     mafft = subprocess.run(
         [shutil.which("mafft") or "mafft", "--version"], capture_output=True, text=True
@@ -79,10 +93,12 @@ def environment(data: bytes) -> dict:
         "sha256": hashlib.sha256(data).hexdigest(),
         "bytes": len(data),
         "sequences": len(encode(data)),
-        "dna_storage": version("dna-storage-simulator"),
-        "reedsolo": version("reedsolo"),
         "mafft": mafft.stderr.strip(),
         "python": platform.python_version(),
+        "packages": {package: version(package) for package in PACKAGES},
         "platform": platform.platform(),
-        "processor": platform.processor(),
+        "processor": processor(),
+        "physical_cores": psutil.cpu_count(logical=False),
+        "logical_cores": psutil.cpu_count(),
+        "memory_gib": round(psutil.virtual_memory().total / 2**30, 1),
     }
