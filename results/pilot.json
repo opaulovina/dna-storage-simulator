@@ -20,28 +20,30 @@
   "memory_gib": 15.3,
   "workers": 4,
   "wall_seconds": {
-    "1": 121.77158134401543,
-    "4": 58.84027505799895
+    "1": 114.34423356299521,
+    "4": 53.963027566991514
   },
-  "speedup": 2.06952773799893,
+  "speedup": 2.118936588964443,
+  "mafft_startup_seconds": 0.06469821559876436,
   "identical_results": true,
   "final_grid_runs_per_condition": 432,
   "projection": {
     "MAFFT": {
-      "seconds_isolated": 13.448005708629353,
-      "seconds_parallel": 22.65831472500213,
-      "inflation": 0.6848828901420438,
-      "memory_kib": 27401,
-      "projected_hours_isolated": 1.6137606850355224,
-      "projected_hours_parallel": 0.7797724357132327
+      "seconds_isolated": 12.602167040120548,
+      "seconds_parallel": 20.77811089199531,
+      "inflation": 0.6487728519901093,
+      "memory_kib": 27435.5,
+      "projected_hours_isolated": 1.5122600448144659,
+      "projected_hours_parallel": 0.7136882022286144,
+      "startup_share": 0.7187454471116396
     },
     "RS híbrido": {
-      "seconds_isolated": 0.7694119612460781,
-      "seconds_parallel": 1.9905631132496637,
-      "inflation": 1.587122651467371,
-      "memory_kib": 485,
-      "projected_hours_isolated": 0.09232943534952938,
-      "projected_hours_parallel": 0.044613770404838674
+      "seconds_isolated": 0.7550073554921255,
+      "seconds_parallel": 1.8724661403830396,
+      "inflation": 1.4800634414515565,
+      "memory_kib": 493,
+      "projected_hours_isolated": 0.09060088265905505,
+      "projected_hours_parallel": 0.0427577130580076
     }
   }
 }

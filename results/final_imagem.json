@@ -1,0 +1,23 @@
+{
+  "file": "imagem.pgm",
+  "sha256": "94a5e23d6cc26e9d80febb427459d781c64f27bd6f880a64e7877c08f774b786",
+  "bytes": 16399,
+  "sequences": 586,
+  "mafft": "v7.505 (2022/Apr/10)",
+  "python": "3.12.3",
+  "packages": {
+    "dna-storage-simulator": "0.1.0",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "matplotlib": "3.11.2",
+    "psutil": "7.2.2",
+    "reedsolo": "1.7.0"
+  },
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.39",
+  "processor": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+  "physical_cores": 4,
+  "logical_cores": 8,
+  "memory_gib": 15.3,
+  "workers": 1,
+  "redundancy": 0.15
+}
