@@ -1,8 +1,12 @@
+import subprocess
+import time
+
 import pytest
 
 from dna_storage.codec.payload import encode
 from dna_storage.correction.base import Corrector
 from dna_storage.metrics import (
+    PeakMemory,
     alignment,
     hamming,
     mean_hamming,
@@ -70,3 +74,20 @@ def test_measure_returns_the_correction_with_time_and_memory():
     assert result.recovered == ["ATCG", "GGCC"]
     assert result.seconds >= 0
     assert result.memory_kib >= 0
+
+
+def test_peak_memory_sees_an_allocation_made_inside_the_block():
+    with PeakMemory(interval=0.001) as memory:
+        block = bytearray(50 * 1024 * 1024)
+        time.sleep(0.05)
+        del block
+    assert memory.kib >= 40 * 1024
+
+
+def test_peak_memory_counts_external_programs():
+    with PeakMemory(interval=0.001) as memory:
+        subprocess.run(
+            ["python3", "-c", "import time; block = bytearray(60 * 1024 * 1024); time.sleep(0.3)"],
+            check=True,
+        )
+    assert memory.kib >= 40 * 1024

@@ -1,12 +1,8 @@
 import argparse
 import csv
-import hashlib
 import itertools
 import json
 import os
-import platform
-import shutil
-import subprocess
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from statistics import mean
@@ -16,9 +12,12 @@ import matplotlib.pyplot as plt
 from dna_storage.channel import ChannelConfig, simulate_reads
 from dna_storage.codec.payload import BYTES_PER_SEQUENCE, encode
 from dna_storage.correction.mafft import MafftCorrector
+from dna_storage.experiment import environment, label
 from dna_storage.metrics import mean_hamming, recovery_rate
 
-REPETITIONS = 8
+SEQUENCES = 140
+FILE_SIZE = SEQUENCES * BYTES_PER_SEQUENCE
+REPETITIONS = 3
 ERROR_RATES = (0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18, 0.20, 0.25, 0.30)
 DEPTHS = (5, 10, 20, 30, 50, 70, 100, 200)
 IDS_RATIOS = ((1, 1, 1), (1, 1, 2))
@@ -29,7 +28,7 @@ def run(sequences, ids_ratio, error_rate, depth, seed):
     config = ChannelConfig(error_rate=error_rate, depth=depth, seed=seed, ids_ratio=ids_ratio)
     recovered = MafftCorrector().correct(simulate_reads(sequences, config))
     return {
-        "ids_ratio": ":".join(str(part) for part in ids_ratio),
+        "ids_ratio": label(ids_ratio),
         "error_rate": error_rate,
         "depth": depth,
         "seed": seed,
@@ -40,19 +39,19 @@ def run(sequences, ids_ratio, error_rate, depth, seed):
 
 
 def load(path):
-    data = path.read_bytes()
-    whole = len(data) // BYTES_PER_SEQUENCE * BYTES_PER_SEQUENCE
-    if whole == 0:
-        raise SystemExit(f"{path} tem {len(data)} bytes; o mínimo é {BYTES_PER_SEQUENCE}")
-    return data[:whole]
+    text = path.read_bytes()
+    if not text:
+        raise SystemExit(f"{path} está vazio")
+    copies = FILE_SIZE // len(text) + 1
+    return (text * copies)[:FILE_SIZE]
 
 
 def mean_rates(rows, field="recovery_rate"):
     groups = {}
     for row in rows:
-        key = (row["ids_ratio"], row["error_rate"], row["depth"])
-        groups.setdefault(key, []).append(row[field])
-    return {key: mean(values) for key, values in groups.items()}
+        group = (row["ids_ratio"], row["error_rate"], row["depth"])
+        groups.setdefault(group, []).append(row[field])
+    return {group: mean(values) for group, values in groups.items()}
 
 
 def summarize(rows, error_rates, depths):
@@ -88,27 +87,6 @@ def plot(rows, error_rates, depths, path):
     figure.savefig(path, dpi=150)
 
 
-def environment(path, data, args):
-    mafft = subprocess.run(
-        [shutil.which("mafft"), "--version"], capture_output=True, text=True, check=True
-    )
-    return {
-        "file": path.name,
-        "bytes": len(data),
-        "sequences": len(data) // BYTES_PER_SEQUENCE,
-        "sha256": hashlib.sha256(data).hexdigest(),
-        "mafft": mafft.stderr.strip(),
-        "python": platform.python_version(),
-        "platform": platform.platform(),
-        "processor": platform.processor(),
-        "cpus": os.cpu_count(),
-        "error_rates": args.error_rates,
-        "depths": args.depths,
-        "ids_ratios": [list(ratio) for ratio in IDS_RATIOS],
-        "repetitions": args.repetitions,
-    }
-
-
 def main():
     parser = argparse.ArgumentParser(description="Condição A nos parâmetros de Xie et al. (2023)")
     parser.add_argument("file", type=Path)
@@ -138,8 +116,16 @@ def main():
         writer = csv.DictWriter(handle, fieldnames=FIELDS)
         writer.writeheader()
         writer.writerows(rows)
+    metadata = {
+        "file": args.file.name,
+        **environment(data),
+        "error_rates": args.error_rates,
+        "depths": args.depths,
+        "ids_ratios": [list(ratio) for ratio in IDS_RATIOS],
+        "repetitions": args.repetitions,
+    }
     with open(args.output.with_suffix(".json"), "w") as handle:
-        json.dump(environment(args.file, data, args), handle, indent=2, ensure_ascii=False)
+        json.dump(metadata, handle, indent=2, ensure_ascii=False)
     plot(rows, args.error_rates, args.depths, args.output.with_suffix(".png"))
     summarize(rows, args.error_rates, args.depths)
 

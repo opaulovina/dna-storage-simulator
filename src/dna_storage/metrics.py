@@ -1,8 +1,12 @@
-import resource
+import threading
 import time
 from dataclasses import dataclass
 
+import psutil
+
 from dna_storage.correction.base import Corrector
+
+SAMPLING_INTERVAL = 0.01
 
 
 # Needleman-Wunsch com custo 1 para substituição, inserção e deleção.
@@ -60,14 +64,52 @@ class Measurement:
     memory_kib: int
 
 
+def resident_memory(process: psutil.Process) -> int:
+    total = process.memory_info().rss
+    for child in process.children(recursive=True):
+        try:
+            if child.cmdline() != process.cmdline():
+                total += child.memory_info().rss
+        except psutil.Error:
+            continue
+    return total
+
+
+# um vigia de memória residente que mede o pico de memória do processo e filhos. O uso é com um
+# gerenciador de contexto:
+class PeakMemory:
+    def __init__(self, interval: float = SAMPLING_INTERVAL) -> None:
+        self.interval = interval
+        self.process = psutil.Process()
+        self.stop = threading.Event()
+        self.baseline = 0
+        self.peak = 0
+
+    def watch(self) -> None:
+        while not self.stop.wait(self.interval):
+            self.peak = max(self.peak, resident_memory(self.process))
+
+    def __enter__(self) -> "PeakMemory":
+        self.baseline = self.peak = resident_memory(self.process)
+        self.thread = threading.Thread(target=self.watch, daemon=True)
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exception) -> None:
+        self.stop.set()
+        self.thread.join()
+        self.peak = max(self.peak, resident_memory(self.process))
+
+    @property
+    def kib(self) -> int:
+        return (self.peak - self.baseline) // 1024
+
+
 # mede o tempo de parede da correção com o MAFFT incluído;
 def measure(corrector: Corrector, clusters: list[list[str]]) -> Measurement:
-    # a memória que a correção acrescenta ao processo python; o pico dos processos externos.
-    # só vale com cada execução num processo novo.
-    before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    start = time.perf_counter()
-    recovered = corrector.correct(clusters)
-    seconds = time.perf_counter() - start
-    after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    children = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
-    return Measurement(recovered, seconds, after - before + children)
+    # a memória que a correção acrescenta: o processo python e os programas do MAFFT, somados.
+    with PeakMemory() as memory:
+        start = time.perf_counter()
+        recovered = corrector.correct(clusters)
+        seconds = time.perf_counter() - start
+    return Measurement(recovered, seconds, memory.kib)

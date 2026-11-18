@@ -103,6 +103,7 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 4.4 A Condição B recebe mais grupos que a A (161 contra 140), cada um com a mesma profundidade.
     Isso é o custo da redundância lógica: 15% a mais de moléculas sintetizadas e de leituras.
     Densidade: A = 1,87 bits/nt; B = 1,62 bits/nt (só payload e índice, sem primers).
+    O payload de dados é o mesmo da Condição A; os grupos a mais são só de paridade.
     Fonte: monografia 1.2, 2.1 e 4.2. Reportar junto com os resultados.
 
 4.5 BMA com ponteiros: voto por pluralidade; quem concorda avança 1; quem discorda testa três
@@ -113,9 +114,13 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     Janela de 4 e regras de desempate: decisão nossa (o código aberto do Toolkit de Sharma olha
     até 4 bases à frente).
 
-4.6 O código de Organick é proprietário. O BMA e a matriz foram implementados por nós a partir da
-    descrição do artigo; o Toolkit de Sharma foi usado como referência de leitura, não copiado.
-    Fonte: monografia 3.1 e 3.2.
+4.6 O código de Organick é proprietário (seção "Code availability" do artigo: "the custom code
+    is proprietary"). O artigo descreve o método em texto, na seção de métodos de codificação e
+    decodificação e na Figura 2b, sem pseudocódigo. O BMA e a matriz foram implementados por nós a
+    partir dessa descrição; o Toolkit de Sharma foi usado como referência de leitura, não copiado.
+    Diferenças em relação a Organick: símbolos de 8 bits (4.2), sem embaralhamento (1.6), sem o
+    código rotativo que elimina homopolímeros, e regra de decisão do BMA formalizada por nós (4.5).
+    Fonte: Organick et al. (2018); monografia 3.1 e 3.2.
 
 4.7 O índice não é protegido pelo RS (em Organick o endereço é um prefixo fora do código).
     Um índice errado faz a sequência contar como não recuperada, como na Condição A.
@@ -139,9 +144,13 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 
 5.3 Tempo: relógio de parede (time.perf_counter) da correção inteira, incluindo o MAFFT.
 
-5.4 Memória: pico de memória residente que a correção acrescenta ao processo Python, mais o pico
-    dos processos externos (MAFFT). Só é válido medindo cada execução num processo novo.
-    Fonte: monografia 4.4. Método: decisão nossa.
+5.4 Memória: durante a correção, a cada 10 ms, soma-se a memória residente do processo Python e
+    dos programas que ele abriu (o MAFFT). A métrica é o maior valor menos o valor de antes da
+    correção. Picos mais curtos que 10 ms podem escapar.
+    A primeira versão usava o contador do sistema operacional (getrusage), mas ele mistura a
+    memória do Python na conta do MAFFT (o processo filho nasce como cópia do Python) e foi
+    descartada.
+    Fonte: monografia 4.4. Método: decisão nossa (biblioteca psutil).
 
 5.5 Assimetria de linguagem: MAFFT é C chamado por subprocesso (com ~0,14 s de partida por
     chamada); o BMA e o RS são Python. Declarar ao comparar tempos.
@@ -160,12 +169,14 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     o conto homônimo de Andersen, ficou fora do ar durante o trabalho. Outro texto com o mesmo
     nome encontrado (R. K. Narayan) é protegido por direitos autorais e não poderia ser publicado
     no repositório.
-    O arquivo é cortado no último múltiplo de 28 bytes (1.484 bytes = 53 sequências), para não
-    criar uma sequência com preenchimento de zeros (um homopolímero longo de A, que prejudica o
-    alinhamento e não existe no arquivo de Xie, de 140 sequências exatas).
+    O abstract (1.494 bytes) é repetido em sequência até completar exatamente 3.920 bytes, o
+    mesmo tamanho do arquivo de Xie (140 sequências, sem preenchimento de zeros). Como 1.494 não
+    é múltiplo de 28, as cópias começam em posições diferentes dos blocos, e as 140 sequências
+    são todas distintas. Com agrupamento perfeito, cada sequência é corrigida de forma
+    independente, então a repetição do texto não favorece nenhuma condição.
 
-6.2 8 repetições por ponto (sementes 0 a 7): 53 x 8 = 424 sequências por ponto, comparável às 420
-    de 3 repetições com 140 sequências. Xie usou 100 repetições.
+6.2 3 repetições por ponto (sementes 0, 1 e 2): 420 sequências por ponto. Xie usou 100
+    repetições; o tempo de execução do MAFFT não permite isso aqui.
 
 6.3 Grade: taxas de 2% a 20% (de 2 em 2), 25% e 30%; profundidades 5, 10, 20, 30, 50, 70, 100 e
     200; proporções 1:1:1 e 1:1:2.
@@ -182,14 +193,33 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 
 7.1 Python 3.12, pacote instalável (pasta src/), código em inglês, mensagens em português.
 7.2 Testes automáticos (pytest) para cada módulo e verificação de estilo (ruff, linhas até 100).
-7.3 GitHub Actions: a cada push, o GitHub instala tudo (inclusive o MAFFT) numa máquina limpa e
-    roda os testes. Prova que o código funciona fora do computador do autor (monografia 4.6).
+7.3 Por que GitHub Actions. A cada push, o GitHub monta uma máquina limpa, instala tudo
+    (inclusive o MAFFT) e roda os testes e o ruff. Isso prova que o projeto funciona fora do seu
+    notebook, que é a reprodutibilidade da 4.6. Também pega erro antes de alguém clonar o
+    repositório e gera o selo verde do README, que é o que um recrutador ou avaliador vê primeiro.
 7.4 Cada resultado é salvo com o ambiente: SHA-256 do arquivo de entrada, versões do MAFFT e do
     Python, processador, grade e repetições (monografia 4.6).
 7.5 Licença MIT; repositório público.
 
 
-8. LIMITAÇÕES A DECLARAR
+8. ORQUESTRADOR (MODO EXPERIMENTAL)
+-----------------------------------
+
+8.1 Cada combinação (taxa, profundidade, proporção, semente) roda as duas condições. Cada condição
+    roda num processo novo, para que tempo e memória de uma não contaminem a outra.
+8.2 O ruído é regenerado dentro de cada processo a partir da semente. Mesma semente, mesmas
+    leituras: A e B recebem exatamente o mesmo ruído (5.1) sem precisar trocar dados entre
+    processos.
+8.3 Cada execução é gravada no CSV assim que termina. Se o computador desligar, basta rodar de
+    novo: o que já foi feito é pulado. O script recusa misturar resultados de arquivos de entrada
+    diferentes no mesmo CSV (confere o SHA-256).
+8.4 Várias execuções rodam em paralelo (uma por núcleo). Isso pode alterar o tempo medido; o
+    experimento piloto (etapa 9) compara com execuções isoladas para decidir quantas rodar juntas.
+8.5 A mesma função (run_condition) serve ao modo experimental e, depois, ao Streamlit (5.1).
+8.6 Cada linha do CSV traz também a densidade: bits do arquivo / (moléculas x 120 bases).
+
+
+9. LIMITAÇÕES A DECLARAR
 ------------------------
 
 - Canal idealizado (erros uniformes). Sharma et al. (2024) mostram que reconstruir leituras

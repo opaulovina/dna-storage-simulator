@@ -19,6 +19,7 @@ dependencies = [
     "pandas>=2.2",
     "matplotlib>=3.9",
     "streamlit>=1.38",
+    "psutil>=5.9",
 ]
 
 [project.optional-dependencies]

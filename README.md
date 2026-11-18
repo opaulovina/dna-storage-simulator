@@ -32,6 +32,21 @@ python experiments/validate_xie.py data/abstract.txt
 The raw results, the run environment and a heatmap are written to
 `results/validation_xie.csv`, `results/validation_xie.json` and `results/validation_xie.png`.
 
+## Running the experiments
+
+Both conditions are run on the same noisy reads, each run in a fresh process so that time and
+memory are measured in isolation. Results are appended to a CSV as they finish, so an interrupted
+run can be resumed by repeating the command:
+
+```bash
+python experiments/run_experiments.py data/abstract.txt \
+    --error-rates 0.04 0.08 0.12 0.16 0.20 --depths 10 30 50 \
+    --ratios 1:1:1 1:1:2 --repetitions 3
+```
+
+The output is `results/experiments.csv` (one row per condition and run) and
+`results/experiments.json` (input checksum and software versions).
+
 ## Design decisions
 
 Every scope and design decision, with its source, is listed (in Portuguese) in
