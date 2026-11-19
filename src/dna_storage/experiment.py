@@ -16,12 +16,20 @@ from dna_storage.correction.reed_solomon import REDUNDANCY, RsHybridCorrector, a
 from dna_storage.metrics import mean_hamming, measure, recovery_rate
 
 CONDITIONS = (MafftCorrector.name, RsHybridCorrector.name)
-PACKAGES = ("dna-storage-simulator", "numpy", "pandas", "matplotlib", "psutil", "reedsolo")
+PACKAGES = (
+    "dna-storage-simulator",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "psutil",
+    "reedsolo",
+    "pyspoa",
+)
 
 
 @dataclass(frozen=True)
 # representa uma configuração de experimento, incluindo a taxa de erro, profundidade de leitura,
-# semente aleatória, proporção I:D:S e redundância.
+# semente aleatória, proporção I:D:S, redundância e reconstrução da Condição B.
 # imutável, como a ChannelConfig
 class Trial:
     error_rate: float
@@ -29,18 +37,29 @@ class Trial:
     seed: int
     ids_ratio: tuple[float, float, float] = (1, 1, 1)
     redundancy: float = REDUNDANCY
+    reconstruction: str = "BMA"
 
 
 def label(ids_ratio: tuple[float, float, float]) -> str:
     return ":".join(f"{part:g}" for part in ids_ratio)
 
 
+def series_name(condition: str, reconstruction: str, redundancy: float) -> str:
+    if condition == MafftCorrector.name:
+        return condition
+    if not redundancy:
+        return f"{reconstruction} (sem RS)"
+    return f"{reconstruction} + RS {redundancy:.0%}"
+
+
 # a fábrica do padrão Strategy. Recebe o nome da condição e devolve o objeto certo.
-def corrector_for(condition: str, data_count: int, redundancy: float) -> Corrector:
+def corrector_for(
+    condition: str, data_count: int, redundancy: float, reconstruction: str = "BMA"
+) -> Corrector:
     if condition == MafftCorrector.name:
         return MafftCorrector()
     if condition == RsHybridCorrector.name:
-        return RsHybridCorrector(data_count, redundancy)
+        return RsHybridCorrector(data_count, redundancy, reconstruction)
     raise ValueError(f"condição desconhecida: {condition}")
 
 
@@ -49,13 +68,15 @@ def corrector_for(condition: str, data_count: int, redundancy: float) -> Correct
 # 3. a condição A pega os 140 primeiros grupos e B os 161
 # 4. mede (measure) e devolve uma linha com:
 #    taxa de recuperação, Hamming, tempo, memória, moléculas e densidade
-def run_condition(data: bytes, trial: Trial, condition: str) -> dict:
+#    e também as sequências recuperadas (usadas pelo Streamlit)
+def evaluate(data: bytes, trial: Trial, condition: str) -> tuple[dict, list[str]]:
     sequences = encode(data)
     stored = add_parity(sequences, trial.redundancy)
     config = ChannelConfig(trial.error_rate, trial.depth, trial.seed, trial.ids_ratio)
     clusters = simulate_reads(stored, config)
-    corrector = corrector_for(condition, len(sequences), trial.redundancy)
-    molecules = len(stored) if isinstance(corrector, RsHybridCorrector) else len(sequences)
+    corrector = corrector_for(condition, len(sequences), trial.redundancy, trial.reconstruction)
+    hybrid = isinstance(corrector, RsHybridCorrector)
+    molecules = len(stored) if hybrid else len(sequences)
     result = measure(corrector, clusters[:molecules])
     return {
         "condition": corrector.name,
@@ -64,6 +85,7 @@ def run_condition(data: bytes, trial: Trial, condition: str) -> dict:
         "depth": trial.depth,
         "seed": trial.seed,
         "redundancy": trial.redundancy,
+        "reconstruction": trial.reconstruction if hybrid else "-",
         "sequences": len(sequences),
         "molecules": molecules,
         "density": 8 * len(data) / (molecules * SEQUENCE_LENGTH),
@@ -71,7 +93,12 @@ def run_condition(data: bytes, trial: Trial, condition: str) -> dict:
         "hamming": mean_hamming(result.recovered, sequences),
         "seconds": result.seconds,
         "memory_kib": result.memory_kib,
-    }
+    }, result.recovered
+
+
+# só a linha, para o modo experimental
+def run_condition(data: bytes, trial: Trial, condition: str) -> dict:
+    return evaluate(data, trial, condition)[0]
 
 
 def processor() -> str:

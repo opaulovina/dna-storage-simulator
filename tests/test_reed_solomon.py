@@ -100,3 +100,15 @@ def test_moderate_noise_is_fully_recovered():
     stored = add_parity(SEQUENCES)
     clusters = simulate_reads(stored, ChannelConfig(error_rate=0.06, depth=10, seed=1))
     assert RsHybridCorrector(140).correct(clusters) == SEQUENCES
+
+
+@pytest.mark.parametrize("reconstruction", ["BMA", "DBMA", "NW-POA"])
+def test_every_reconstruction_recovers_moderate_noise(reconstruction):
+    stored = add_parity(SEQUENCES)
+    clusters = simulate_reads(stored, ChannelConfig(error_rate=0.02, depth=10, seed=1))
+    assert RsHybridCorrector(140, reconstruction=reconstruction).correct(clusters) == SEQUENCES
+
+
+def test_unknown_reconstruction_is_rejected():
+    with pytest.raises(ValueError, match="desconhecida"):
+        RsHybridCorrector(140, reconstruction="Trellis")

@@ -5,10 +5,12 @@ from reedsolo import ReedSolomonError, RSCodec
 from dna_storage.codec.mapping import bases_to_bytes, bytes_to_bases, int_to_bases
 from dna_storage.codec.payload import BYTES_PER_SEQUENCE, INDEX_LENGTH, SEQUENCE_LENGTH
 from dna_storage.correction.base import Corrector
-from dna_storage.correction.bma import bma
+from dna_storage.correction.bma import bma, double_sided_bma
+from dna_storage.correction.poa import nw_poa
 
 CODEWORD_LIMIT = 255
 REDUNDANCY = 0.15
+RECONSTRUCTIONS = {"BMA": bma, "DBMA": double_sided_bma, "NW-POA": nw_poa}
 
 
 # calcula o número de moléculas de paridade necessárias para uma dada quantidade de dados e
@@ -75,16 +77,22 @@ class RsHybridCorrector(Corrector):
 
     # inicializa o corretor híbrido de Reed-Solomon, que combina a reconstrução pelo BMA com a
     # decodificação Reed-Solomon das linhas da matriz
-    def __init__(self, data_count: int, redundancy: float = REDUNDANCY) -> None:
+    def __init__(
+        self, data_count: int, redundancy: float = REDUNDANCY, reconstruction: str = "BMA"
+    ) -> None:
+        if reconstruction not in RECONSTRUCTIONS:
+            raise ValueError(f"reconstrução desconhecida: {reconstruction}")
         self.data_count = data_count
         self.redundancy = redundancy
+        self.reconstruction = reconstruction
         self.units = layout(data_count, redundancy)
 
     def correct(self, clusters: list[list[str]]) -> list[str]:
         expected = self.data_count + sum(len(extra) for _, extra in self.units)
         if len(clusters) != expected:
             raise ValueError(f"{len(clusters)} grupos recebidos, esperado {expected}")
-        strands = [bma(reads, SEQUENCE_LENGTH) for reads in clusters]
+        reconstruct = RECONSTRUCTIONS[self.reconstruction]
+        strands = [reconstruct(reads, SEQUENCE_LENGTH) for reads in clusters]
         payloads = [bytearray(bases_to_bytes(strand[INDEX_LENGTH:])) for strand in strands]
         for data, extra in self.units:
             if not extra:

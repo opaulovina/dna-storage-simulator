@@ -45,18 +45,58 @@ python experiments/pilot.py data/abstract_3920.txt
 
 ## Running the experiments
 
-Both conditions are run on the same noisy reads, each run in a fresh process so that time and
-memory are measured in isolation. Results are appended to a CSV as they finish, so an interrupted
-run can be resumed by repeating the command:
+Each run is executed in a fresh process so that time and memory are measured in isolation.
+Results are appended to a CSV as they finish, so an interrupted run can be resumed by repeating
+the command. The final grids were run one at a time (`--workers 1`), because running in parallel
+inflated the measured time by 65-148% on the experiment machine (see `results/pilot.json`).
+
+Main comparison (text and image):
 
 ```bash
 python experiments/run_experiments.py data/abstract_3920.txt \
-    --error-rates 0.04 0.08 0.12 0.16 0.20 --depths 10 30 50 \
-    --ratios 1:1:1 1:1:2 --repetitions 3
+    --error-rates 0.02 0.04 0.06 0.08 0.10 0.12 0.14 0.16 0.18 0.20 0.25 0.30 \
+    --depths 5 10 20 30 50 100 --ratios 1:1:1 1:1:2 --repetitions 3 \
+    --workers 1 --output results/final_texto
+
+python experiments/run_experiments.py data/imagem.pgm \
+    --error-rates 0.04 0.08 0.12 0.16 0.20 --depths 10 30 50 --repetitions 3 \
+    --workers 1 --output results/final_imagem
 ```
 
-The output is `results/experiments.csv` (one row per condition and run) and
-`results/experiments.json` (input checksum and software versions).
+Ablation of the outer Reed-Solomon code (Condition B only, same grid):
+
+```bash
+python experiments/run_experiments.py data/abstract_3920.txt \
+    --error-rates 0.02 0.04 0.06 0.08 0.10 0.12 0.14 0.16 0.18 0.20 0.25 0.30 \
+    --depths 5 10 20 30 50 100 --ratios 1:1:1 1:1:2 --repetitions 3 \
+    --conditions "RS híbrido" --redundancy 0 0.05 0.10 0.15 0.25 0.50 \
+    --workers 1 --output results/ablacao
+```
+
+Reconstruction variants of Condition B (Double-sided BMA and NW-POA):
+
+```bash
+python experiments/run_experiments.py data/abstract_3920.txt \
+    --error-rates 0.02 0.04 0.06 0.08 0.10 0.12 0.14 0.16 0.18 0.20 0.25 0.30 \
+    --depths 5 10 20 30 50 100 --ratios 1:1:1 1:1:2 --repetitions 3 \
+    --conditions "RS híbrido" --redundancy 0 0.15 --reconstructions DBMA NW-POA \
+    --workers 1 --output results/reconstrucoes
+```
+
+Each CSV has one row per condition and run; the matching JSON stores the input checksum, the
+hardware and the software versions.
+
+## Interactive app
+
+```bash
+streamlit run app/app.py
+```
+
+The app runs both conditions on the same noisy reads for a chosen file and parameters (including
+the reconstruction used by Condition B: BMA, Double-sided BMA or NW-POA), shows the metrics side
+by side, maps which sequences failed, and displays the recovered text or image. A
+second tab plots the results of the batch experiments, and a third shows the validation against
+Xie et al. (2023).
 
 ## Design decisions
 

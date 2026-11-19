@@ -8,7 +8,16 @@ from pathlib import Path
 import pandas as pd
 import psutil
 
-from dna_storage.experiment import CONDITIONS, Trial, environment, label, run_condition
+from dna_storage.correction.mafft import MafftCorrector
+from dna_storage.correction.reed_solomon import RECONSTRUCTIONS
+from dna_storage.experiment import (
+    CONDITIONS,
+    Trial,
+    environment,
+    label,
+    run_condition,
+    series_name,
+)
 
 FIELDS = (
     "condition",
@@ -17,6 +26,7 @@ FIELDS = (
     "depth",
     "seed",
     "redundancy",
+    "reconstruction",
     "sequences",
     "molecules",
     "density",
@@ -35,15 +45,58 @@ def ratio(text):
     return parts
 
 
-def key(condition, ids_ratio, error_rate, depth, seed, redundancy):
-    return (condition, ids_ratio, float(error_rate), int(depth), int(seed), float(redundancy))
+def key(condition, ids_ratio, error_rate, depth, seed, redundancy, reconstruction):
+    return (
+        condition,
+        ids_ratio,
+        float(error_rate),
+        int(depth),
+        int(seed),
+        float(redundancy),
+        reconstruction,
+    )
+
+
+def job_key(trial, condition):
+    reconstruction = "-" if condition == MafftCorrector.name else trial.reconstruction
+    return key(
+        condition,
+        label(trial.ids_ratio),
+        trial.error_rate,
+        trial.depth,
+        trial.seed,
+        trial.redundancy,
+        reconstruction,
+    )
 
 
 def done_keys(path):
     if not path.exists():
         return set()
     with open(path, newline="") as handle:
-        return {key(*(row[field] for field in FIELDS[:6])) for row in csv.DictReader(handle)}
+        reader = csv.DictReader(handle)
+        if tuple(reader.fieldnames or ()) != FIELDS:
+            raise SystemExit(f"{path} tem colunas de uma versão anterior; use outro --output")
+        return {key(*(row[field] for field in FIELDS[:7])) for row in reader}
+
+
+def build_jobs(args):
+    jobs = []
+    for ids_ratio, error_rate, depth, seed in itertools.product(
+        args.ratios, args.error_rates, args.depths, range(args.repetitions)
+    ):
+        if MafftCorrector.name in args.conditions:
+            trial = Trial(error_rate, depth, seed, ids_ratio, args.redundancy[0])
+            jobs.append((trial, MafftCorrector.name))
+        for condition in args.conditions:
+            if condition == MafftCorrector.name:
+                continue
+            for redundancy, reconstruction in itertools.product(
+                args.redundancy, args.reconstructions
+            ):
+                trial = Trial(error_rate, depth, seed, ids_ratio, redundancy, reconstruction)
+                jobs.append((trial, condition))
+    return jobs
 
 
 def check_input(path, metadata):
@@ -56,17 +109,24 @@ def check_input(path, metadata):
 
 def summarize(path):
     table = pd.read_csv(path)
+    table["series"] = [
+        series_name(*values)
+        for values in zip(
+            table["condition"], table["reconstruction"], table["redundancy"], strict=True
+        )
+    ]
     summary = table.pivot_table(
         index=["ids_ratio", "error_rate"],
-        columns=["condition", "depth"],
+        columns=["series", "depth"],
         values="recovery_rate",
         aggfunc="mean",
     )
     print(summary.round(2).to_string())
 
 
-# roda a grade pedida nas duas condições, com "--workers" processos ao mesmo tempo (o padrão é um
-# por núcleo físico), grava cada execução no CSV assim que termina e pula as que já foram feitas
+# roda a grade pedida nas condições escolhidas, com "--workers" processos ao mesmo tempo (o padrão
+# é um por núcleo físico), grava cada execução no CSV assim que termina e pula as que já foram
+# feitas
 def main():
     parser = argparse.ArgumentParser(description="Condições A e B sobre o mesmo ruído")
     parser.add_argument("file", type=Path)
@@ -74,7 +134,10 @@ def main():
     parser.add_argument("--depths", type=int, nargs="+", required=True)
     parser.add_argument("--ratios", type=ratio, nargs="+", default=[(1.0, 1.0, 1.0)])
     parser.add_argument("--repetitions", type=int, default=3)
-    parser.add_argument("--redundancy", type=float, default=0.15)
+    parser.add_argument("--redundancy", type=float, nargs="+", default=[0.15])
+    parser.add_argument(
+        "--reconstructions", nargs="+", choices=list(RECONSTRUCTIONS), default=["BMA"]
+    )
     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
     parser.add_argument("--workers", type=int, default=psutil.cpu_count(logical=False))
     parser.add_argument("--output", type=Path, default=Path("results/experiments"))
@@ -88,31 +151,14 @@ def main():
         **environment(data),
         "workers": args.workers,
         "redundancy": args.redundancy,
+        "reconstructions": args.reconstructions,
     }
     csv_path = args.output.with_suffix(".csv")
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     check_input(args.output.with_suffix(".json"), metadata)
 
     finished = done_keys(csv_path)
-    jobs = [
-        (Trial(error_rate, depth, seed, ids_ratio, args.redundancy), condition)
-        for ids_ratio, error_rate, depth, seed, condition in itertools.product(
-            args.ratios, args.error_rates, args.depths, range(args.repetitions), args.conditions
-        )
-    ]
-    jobs = [
-        (trial, condition)
-        for trial, condition in jobs
-        if key(
-            condition,
-            label(trial.ids_ratio),
-            trial.error_rate,
-            trial.depth,
-            trial.seed,
-            trial.redundancy,
-        )
-        not in finished
-    ]
+    jobs = [job for job in build_jobs(args) if job_key(*job) not in finished]
     print(f"{len(finished)} execuções já feitas; {len(jobs)} a fazer")
 
     new_file = not csv_path.exists()

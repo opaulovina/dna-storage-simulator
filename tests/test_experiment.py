@@ -8,7 +8,14 @@ import pytest
 from dna_storage.channel import ChannelConfig, simulate_reads
 from dna_storage.codec.payload import encode
 from dna_storage.correction.reed_solomon import add_parity
-from dna_storage.experiment import CONDITIONS, Trial, corrector_for, label, run_condition
+from dna_storage.experiment import (
+    CONDITIONS,
+    Trial,
+    corrector_for,
+    label,
+    run_condition,
+    series_name,
+)
 
 DATA = bytes(range(56))
 SCRIPT = Path(__file__).parents[1] / "experiments" / "run_experiments.py"
@@ -96,3 +103,60 @@ def test_batch_script_refuses_to_mix_input_files(tmp_path):
         )
     assert result.returncode != 0
     assert "outro arquivo" in result.stderr
+
+
+def test_series_names_separate_reconstruction_and_redundancy():
+    assert series_name("MAFFT", "-", 0.15) == "MAFFT"
+    assert series_name("RS híbrido", "BMA", 0.15) == "BMA + RS 15%"
+    assert series_name("RS híbrido", "NW-POA", 0.0) == "NW-POA (sem RS)"
+
+
+def test_rows_record_the_reconstruction_of_condition_b_only():
+    trial = Trial(error_rate=0, depth=1, seed=0, reconstruction="DBMA")
+    assert run_condition(DATA, trial, CONDITIONS[0])["reconstruction"] == "-"
+    assert run_condition(DATA, trial, CONDITIONS[1])["reconstruction"] == "DBMA"
+
+
+def test_zero_redundancy_has_the_density_of_condition_a():
+    trial = Trial(error_rate=0, depth=1, seed=0, redundancy=0)
+    hybrid = run_condition(DATA, trial, CONDITIONS[1])
+    assert hybrid["molecules"] == 2
+
+
+def test_ablation_runs_only_condition_b_for_each_redundancy_and_reconstruction(tmp_path):
+    source = tmp_path / "input.bin"
+    source.write_bytes(DATA)
+    output = tmp_path / "ablation"
+    subprocess.run(
+        [
+            sys.executable, str(SCRIPT), str(source),
+            "--error-rates", "0.05",
+            "--depths", "3",
+            "--repetitions", "1",
+            "--conditions", "RS híbrido",
+            "--redundancy", "0", "0.15",
+            "--reconstructions", "BMA", "NW-POA",
+            "--output", str(output),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    with open(output.with_suffix(".csv"), newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert {(row["redundancy"], row["reconstruction"]) for row in rows} == {
+        ("0.0", "BMA"), ("0.0", "NW-POA"), ("0.15", "BMA"), ("0.15", "NW-POA")
+    }
+
+
+def test_batch_script_refuses_a_csv_with_old_columns(tmp_path):
+    source = tmp_path / "input.bin"
+    source.write_bytes(DATA)
+    output = tmp_path / "old"
+    output.with_suffix(".csv").write_text("condition,ids_ratio\n")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(source), "--error-rates", "0",
+         "--depths", "1", "--repetitions", "1", "--output", str(output)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode != 0
+    assert "versão anterior" in result.stderr

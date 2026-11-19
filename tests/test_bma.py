@@ -1,6 +1,6 @@
 from dna_storage.channel import ChannelConfig, simulate_reads
 from dna_storage.codec.payload import SEQUENCE_LENGTH, encode
-from dna_storage.correction.bma import bma, plurality, realign
+from dna_storage.correction.bma import bma, double_sided_bma, plurality, realign
 
 SEQUENCE = encode(bytes(range(28)))[0]
 
@@ -49,3 +49,30 @@ def test_low_error_rate_is_fully_recovered():
     clusters = simulate_reads(sequences, ChannelConfig(error_rate=0.03, depth=30, seed=1))
     assert any(read not in sequences for reads in clusters for read in reads)
     assert [bma(reads, SEQUENCE_LENGTH) for reads in clusters] == sequences
+
+
+def test_double_sided_bma_recovers_identical_reads():
+    assert double_sided_bma([SEQUENCE] * 3, SEQUENCE_LENGTH) == SEQUENCE
+
+
+def test_double_sided_bma_corrects_one_error_of_each_type():
+    other = "A" if SEQUENCE[50] != "A" else "T"
+    substitution = SEQUENCE[:50] + other + SEQUENCE[51:]
+    deletion = SEQUENCE[:30] + SEQUENCE[31:]
+    insertion = SEQUENCE[:90] + "G" + SEQUENCE[90:]
+    reads = [SEQUENCE, SEQUENCE, substitution, deletion, insertion]
+    assert double_sided_bma(reads, SEQUENCE_LENGTH) == SEQUENCE
+
+
+def test_double_sided_bma_joins_a_forward_left_half_and_a_backward_right_half():
+    reads = [SEQUENCE[:100], SEQUENCE[:100]]
+    result = double_sided_bma(reads, SEQUENCE_LENGTH)
+    assert len(result) == SEQUENCE_LENGTH
+    assert result[:60] == SEQUENCE[:60]
+    assert result[60:] == bma([read[::-1] for read in reads], 60)[::-1]
+
+
+def test_double_sided_bma_low_error_rate_is_fully_recovered():
+    sequences = encode(bytes(range(256)))
+    clusters = simulate_reads(sequences, ChannelConfig(error_rate=0.03, depth=30, seed=1))
+    assert [double_sided_bma(reads, SEQUENCE_LENGTH) for reads in clusters] == sequences

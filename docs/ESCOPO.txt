@@ -59,9 +59,9 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 2.6 Semente obrigatória e gerador de sorteios próprio. Mesma semente = mesmas leituras.
     Fonte: monografia 4.6 e 5.4.
 
-2.7 O ruído é gerado uma vez e as duas condições recebem as mesmas leituras. As moléculas de
-    paridade da Condição B ficam no fim da lista, então as leituras das moléculas de dados são
-    idênticas para A e B.
+2.7 O ruído é gerado a partir da mesma semente, e as duas condições recebem as mesmas leituras.
+    As moléculas de paridade da Condição B ficam no fim da lista, então as leituras das moléculas
+    de dados são idênticas para A e B.
     Fonte: monografia 5.1. A técnica da paridade no fim é decisão nossa.
 
 
@@ -77,7 +77,10 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     Fonte: monografia 5.2.
 
 3.3 Consenso: voto por coluna do alinhamento. A lacuna (-) também vota; se ela vence, a coluna
-    sai. Empate: vence o símbolo da primeira leitura.
+    sai. Empate: vence, entre os símbolos empatados, o que aparece primeiro na coluna (lendo as
+    leituras na ordem). Não é necessariamente o símbolo da primeira leitura: na coluna
+    (G, A, A, C, C), A e C empatam, e vence A, que aparece antes de C; o G da primeira leitura
+    nem disputa.
     Fonte: monografia 2.4 ("símbolo mais frequente"); Xie fala em "voting". Tratamento da lacuna
     e do empate: decisão nossa.
 
@@ -135,11 +138,29 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     Fonte: Organick et al. (2018); Sharma et al. (2024); monografia 3.1 e 3.2.
 
 4.7 O índice não é protegido pelo RS (em Organick o endereço é um prefixo fora do código).
+    Para arquivos pequenos, o índice começa com uma sequência de A (por exemplo AAAAAxxx para as
+    140 sequências), um homopolímero que dificulta os alinhamentos. É uma característica do
+    esquema de Xie e vale para todas as condições.
     Um índice errado faz a sequência contar como não recuperada, como na Condição A.
 
 4.8 Linha da matriz com erros demais: fica como veio, e a falha aparece na métrica.
 
-4.9 Double-sided BMA e NW-POA: variantes exploratórias, se der tempo (etapa 10.1).
+4.9 Reconstruções da Condição B (o usuário escolhe uma por execução, monografia 5.5):
+    - BMA (4.5), a de referência.
+    - Double-sided BMA: reconstrói a primeira metade (60 bases) da esquerda para a direita e a
+      segunda metade (60 bases) da direita para a esquerda, com as leituras invertidas, e junta.
+      Fonte: Sharma et al. (2024) VII-B. O Toolkit corta em 59/61; seguimos o texto do artigo
+      ("left half" e "right half") e cortamos ao meio.
+    - NW-POA: alinhamento múltiplo por grafo de ordem parcial com Needleman-Wunsch global
+      (biblioteca pyspoa, parâmetros padrão). Se o alinhamento passar de 120 colunas, saem as
+      colunas com mais lacunas (Sharma: "omitting the x indexes with the most number of indels");
+      empate entre colunas: sai a mais à esquerda. Cada coluna restante vota só entre bases (a
+      lacuna não vota, como no Toolkit), com a mesma regra de empate de 3.3. Se o alinhamento
+      tiver menos de 120 colunas, completa-se com A (caso não descrito por Sharma; decisão nossa).
+      Fonte: Sharma et al. (2024) VII-C.
+    - Prévia (abstract, 1 semente): as três ficam próximas até ~12%; a 16% com 30 leituras o
+      NW-POA recupera bem menos que os BMA. Sharma relata o contrário em dados reais; a diferença
+      pode vir do canal uniforme (13). A análise final usa a grade completa.
 
 
 5. MÉTRICAS
@@ -164,19 +185,16 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     descartada.
     Fonte: monografia 4.4. Método: decisão nossa (biblioteca psutil).
 
-5.5 Assimetria de linguagem: MAFFT é C chamado por subprocesso; o BMA e o RS são Python. Abrir o
-    MAFFT custa ~0,14 s por grupo, e isso é cerca de 87% do tempo da Condição A (medido no
-    piloto). O piloto mede essa partida, e os resultados de tempo podem ser apresentados também
-    sem ela ("tempo líquido"). Reescrever o MAFFT em Python foi descartado: deixaria de ser o
-    MAFFT validado contra Xie.
-    Declarar ao comparar tempos. Tempo e memória são métricas secundárias (monografia 4.4: "não
-    respondem à pergunta de pesquisa principal").
-    - Tempo: acrescentei ao piloto a medição da partida do MAFFT. Abrir o programa leva 0,14 s
-      por grupo, e isso é 87% do tempo da Condição A. O alinhamento em si é só uns 13%.
+5.5 Assimetria de linguagem: MAFFT é C chamado por subprocesso; o BMA, o RS e o NW-POA são
+    Python (o NW-POA chama a biblioteca spoa, em C++, dentro do próprio processo).
+    Tempo e memória são métricas secundárias (monografia 4.4: "não respondem à pergunta de
+    pesquisa principal"). Valores do piloto na máquina dos experimentos (results/pilot.json):
+    - Tempo: abrir o MAFFT leva 0,065 s por grupo, 72% do tempo da Condição A. O alinhamento em
+      si é o restante. Os tempos podem ser apresentados também sem a partida ("tempo líquido").
     - Memória: cada vez que abre, o MAFFT carrega o programa inteiro e as tabelas dele, cerca de
-      26 MB. O BMA reaproveita o Python que já está aberto e precisa só de uns 0,2 MB a mais.
-    (Valores medidos no ambiente de testes; os da máquina dos experimentos ficam em
-    results/pilot.json.)
+      27 MiB. O BMA reaproveita o Python que já está aberto e precisa só de cerca de 0,5 MiB a
+      mais.
+    Reescrever o MAFFT em Python foi descartado: deixaria de ser o MAFFT validado contra Xie.
 
 5.6 Arquivo recuperado (download): remontado na ordem das sequências; trechos de sequências com
     tamanho errado são cortados ou completados com A (bits zero). O arquivo sempre sai com o
@@ -214,15 +232,32 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 
 6.5 Resultado da validação (grade completa, 3 repetições): a Condição A reproduz todas as
     afirmações conferíveis de Xie.
-    - 8% de erro: recuperação completa a partir de 70 leituras (Xie: "only needs 70 reads").
+    - 8% de erro com 70 leituras: 99,8% das sequências (419 de 420) e 100% das bases (Xie:
+      "only needs 70 reads"). Recuperação completa estrita (100% das sequências) só com 200
+      leituras em 1:1:1 e a partir de 50 em 1:1:2.
     - Abaixo de 15%, com 100 leituras, 99,6% ou mais das bases certas (Xie: "more than 95%").
-    - 1:1:2 recupera mais que 1:1:1 em todos os pontos.
+    - 1:1:2 recupera tanto ou mais que 1:1:1 em todos os pontos; em 34 dos 96 as duas empatam
+      (ambas 100% ou ambas 0%), e em nenhum 1:1:2 fica abaixo.
     - Acima de ~16-20%, a recuperação por sequência despenca e mais leituras não ajudam.
-    - Entre 12% e 16%, a recuperação estabiliza a partir de ~70 leituras, como Xie descreve na
-      Fig. 2c ("increasing sequencing depth beyond 60 seems to have negligible effect").
+    - Entre 12% e 16%, a recuperação estabiliza, como Xie descreve na Fig. 2c ("increasing
+      sequencing depth beyond 60 seems to have negligible effect"). A nossa grade não tem o ponto
+      60: ela vai de 50 para 70. Entre 50 e 70 ainda há uma melhora pequena (12%: 0,84 -> 0,89;
+      14%: 0,63 -> 0,69) e de 70 em diante nada muda. A estabilização começa, portanto, entre 50
+      e 70 leituras, o que é compatível com o "acima de 60" de Xie; "70" é só o primeiro ponto
+      medido depois de 60.
     - A interpretação que melhor reproduz os números de Xie a 13% (90% com 30 leituras, 99% com
       60) é "fração dos erros corrigidos" (1 - Hamming / taxa de erro): ~95% com 30 e ~98% com
       50-70. É inferência nossa; Xie não define a medida.
+    - Xie dá números para todas as taxas, inclusive acima de 20%, na Figura 1 (grades com "the
+      average recovery accuracy at each error rate and sequencing depth", de 1% a 40%). Esses
+      valores estão só na imagem da figura, que a extração de texto não lê. Comparar com eles
+      ponto a ponto exige transcrevê-los da figura (pendente).
+
+6.6 Metadados: results/validation_xie.json foi gerado por uma versão anterior do script e diz
+    "file": "abstract.txt", sem o processador. A entrada foi a mesma (abstract repetido até 3.920
+    bytes, mesmo SHA-256), e os 432 pontos em comum com a grade final (results/final_texto.csv,
+    Condição A) são idênticos em taxa de recuperação e Hamming. O hardware é o mesmo do piloto
+    (results/pilot.json).
 
 
 7. ENGENHARIA E REPRODUTIBILIDADE
@@ -237,22 +272,27 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 7.4 Cada resultado é salvo com o ambiente: SHA-256 do arquivo de entrada, versões do MAFFT e do
     Python, processador, grade e repetições (monografia 4.6).
 7.5 Licença MIT; repositório público.
+7.6 O CI roda em ubuntu-24.04 (fixo, não "latest"), cujo apt instala o MAFFT 7.505, a mesma versão
+    da máquina dos experimentos.
+7.7 Todas as bibliotecas usadas estão declaradas no pyproject.toml (inclusive Pillow, usada pela
+    interface, e pyspoa, do NW-POA); as versões exatas ficam em requirements-lock.txt.
 
 
 8. ORQUESTRADOR (MODO EXPERIMENTAL)
 -----------------------------------
 
-8.1 Cada combinação (taxa, profundidade, proporção, semente) roda as duas condições. Cada condição
-    roda num processo novo, para que tempo e memória de uma não contaminem a outra.
-8.2 O ruído é regenerado dentro de cada processo a partir da semente. Mesma semente, mesmas
+8.1 Cada combinação (taxa, profundidade, proporção, semente) roda as condições pedidas. Cada
+    condição roda num processo novo, para que tempo e memória de uma não contaminem a outra.
+8.2 O ruído é gerado a partir da mesma semente, dentro de cada processo. Mesma semente, mesmas
     leituras: A e B recebem exatamente o mesmo ruído (5.1) sem precisar trocar dados entre
     processos.
 8.3 Cada execução é gravada no CSV assim que termina. Se o computador desligar, basta rodar de
     novo: o que já foi feito é pulado. O script recusa misturar resultados de arquivos de entrada
     diferentes no mesmo CSV (confere o SHA-256).
 8.4 [Resultado do piloto na máquina dos experimentos, i5-1135G7, 4 núcleos físicos, 15 GiB:
-    com 4 execuções em paralelo, o tempo de cada uma subiu 68% no MAFFT (13,4 s -> 22,7 s) e
-    159% no RS híbrido (0,77 s -> 1,99 s). Os resultados foram idênticos nos dois modos.
+    com 4 execuções em paralelo, o tempo de cada uma subiu 65% no MAFFT (12,6 s -> 20,8 s) e
+    148% no RS híbrido (0,755 s -> 1,87 s). Os resultados foram idênticos nos dois modos.
+    Fonte: results/pilot.json.
     Decisão: as grades finais rodam uma execução por vez (--workers 1). A grade do texto cabe em
     cerca de 2 h.]
     Várias execuções podem rodar em paralelo (padrão: uma por núcleo físico, não por thread,
@@ -305,7 +345,106 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     50; proporção 1:1:1; 3 repetições (45 combinações por condição).
 
 
-10. LIMITAÇÕES A DECLARAR
+10. INTERFACE STREAMLIT (MODO INTERATIVO)
+-----------------------------------------
+
+10.1 A interface usa o mesmo núcleo do modo experimental (função evaluate), como pede a 5.1:
+     escolhe-se o arquivo (o abstract, a imagem ou um envio), a taxa de erro, a profundidade, a
+     proporção I:D:S, a semente, a reconstrução da Condição B (BMA, DBMA ou NW-POA, como pede a
+     5.5) e a redundância, e as duas condições rodam sobre o mesmo ruído. A Condição B aparece
+     com o nome da configuração ("BMA + RS 15%", "NW-POA (sem RS)" etc.).
+10.2 Mostra: as métricas lado a lado; um mapa de onde estão os erros (uma coluna por sequência);
+     o arquivo original e os dois recuperados (texto ou imagem), com botão para baixar.
+     A remontagem segue a 5.6 (rebuild): o arquivo sai sempre do tamanho certo, com a corrupção
+     visível. Na imagem, o MAFFT aparece com faixas deslocadas (consenso com tamanho errado
+     desloca os pixels seguintes) e o RS híbrido com pontos isolados.
+     Se o cabeçalho do PGM (sequência 0) for corrompido, a interface mostra os pixels com as
+     dimensões do original e avisa; o arquivo baixado continua com o cabeçalho corrompido.
+10.3 Aba "Resultados": lê os CSVs dos experimentos e desenha a métrica escolhida contra a taxa de
+     erro, com as séries nos mesmos eixos (5.6). Vários CSVs podem ser combinados (por exemplo, a
+     grade final com a ablação) desde que usem o mesmo arquivo de entrada (confere o SHA-256).
+     Aba "Validação": mostra a figura da validação contra Xie.
+10.4 Limite de 32 KB por arquivo enviado: o MAFFT leva ~0,1 s por sequência, e 32 KB (~1.170
+     sequências) já levam 1 a 2 minutos com 10 leituras.
+10.5 Tempo e memória mostrados na interface são indicativos (o computador está dividido com o
+     navegador); os valores da monografia vêm do modo experimental.
+10.6 A mesma combinação de parâmetros não roda duas vezes: o resultado fica guardado em cache.
+10.7 A interface está em português; o código e o README, em inglês.
+
+
+11. RESULTADO PRINCIPAL (preliminar, para a análise da etapa 11)
+---------------------------------------------------------------
+
+11.1 Na grade final do texto (432 combinações, 3 sementes), a Condição B recuperou tanto ou mais
+     que a A em todos os 144 pontos médios. Não há ponto de cruzamento na faixa estudada (2% a
+     30%): a B é superior a partir das menores taxas em que as duas diferem.
+11.2 Maior taxa com recuperação completa estrita (100% das 420 sequências), 1:1:1:
+     profundidade:    5     10    20    30    50    100
+     MAFFT (A):       -     -     4%    4%    6%    6%
+     RS híbrido (B):  -     6%   10%   14%   14%   18%
+     Em 1:1:2:
+     MAFFT (A):       -     -     6%    6%    8%   10%
+     RS híbrido (B):  2%    6%   14%   18%   18%   20%
+     ("-": nem a menor taxa da grade, 2%, chega a 100%.) A B tolera de 2 a 3 vezes mais erro com a
+     mesma profundidade.
+11.3 Mesmo com menos leituras no total a B vence: a 12%, a B com 20 leituras (161 x 20 = 3.220
+     leituras) recupera 99,5% das sequências, contra 67% da A com 30 leituras (140 x 30 = 4.200).
+11.4 A vantagem da A é a densidade: 1,87 contra 1,62 bits/nt (15% a mais). Onde as duas chegam a
+     100% (erro baixo e profundidade suficiente), a A entrega o mesmo resultado sintetizando 15%
+     menos moléculas.
+11.5 A imagem (586 sequências) repete o padrão.
+11.6 Cautelas obrigatórias na discussão: canal uniforme favorece a reconstrução (Sharma); o BMA
+     conhece o comprimento (120) e o consenso do MAFFT não; a B usa 15% mais moléculas e leituras.
+11.7 O que 11.1 ainda não responde: a vantagem da B vem do BMA ou do Reed-Solomon? Na prévia, o
+     BMA sozinho já supera o MAFFT, e o RS acrescenta pouco quando o BMA erra muito (cada
+     molécula mal reconstruída estraga muitos bytes da mesma linha). Para saber quando a
+     redundância lógica compensa, faz-se a ablação (seção 14).
+     Prévia (BMA, 1:1:1, 2 sementes): com 10 leituras, o RS muda a recuperação em no máximo 8
+     pontos (8%: 0,91 sem RS, 0,94 com 15%, 0,99 com 50%); com 30 leituras, só perto da borda
+     (18%: 0,84 sem RS, 0,85 com 15%, 0,99 com 50%). Longe da borda, nada: quando muitas moléculas
+     falham, cada linha da matriz passa da capacidade do código. As falhas são no payload, não no
+     índice (que o RS não protege): o índice responde por menos de 3% delas.
+
+
+12. AJUSTES NECESSÁRIOS NO TEXTO DA MONOGRAFIA
+----------------------------------------------
+
+Conferidos contra o texto da monografia do PFC 1.
+
+12.1 4.4: "Corresponde diretamente ao critério de recuperação completa adotado por Xie et al.
+     (2023) e Organick et al. (2018)". Xie não define a medida (6.4); reescrever.
+12.2 5.5: "recebem um conjunto de leituras ruidosas e retornam uma sequência de DNA recuperada".
+     Recebem o conjunto de todos os grupos e devolvem uma sequência por grupo (necessário para o
+     RS da Condição B).
+12.3 "Três condições" ainda aparece na abertura do Capítulo 4 ("as três condições comparadas"),
+     no fim da 4.4 ("sobre as três condições"), na 5.5 ("As três condições de correção") e no
+     Quadro 3 (linhas "Condição B (RS puro)" e "Condição C (RS híbrido e variantes)").
+12.4 Numeração: a 5.1 diz "Na Figura 1 representa esse fluxo" (é a Figura 2); a 3.2 diz "O Quadro
+     1 sintetiza a comparação dessas quatro ferramentas" (é o Quadro 2).
+12.5 4.2 lista a proporção I:D:S entre o que "Mantêm-se controlados", mas a grade usa 1:1:1 e
+     1:1:2: ela passa a ser variável independente.
+12.6 2.3 e 4.2 dizem que o RS corrige "as sequências integralmente perdidas" (erasures), mas a
+     simulação não perde moléculas (2.4): declarar que essa capacidade não é exercitada.
+12.7 2.3: "A configuração adotada neste trabalho é definida no Capítulo 4", e o Capítulo 4 não a
+     define. Incluir: redundância de 15% (paridade/dados), símbolos de 1 byte, blocos de até 221
+     moléculas de dados + paridade, paridade no fim da lista, índice sem proteção, densidade 1,87
+     (A) contra 1,62 bits/nt (B).
+12.8 4.3, último parágrafo: diz que o modelo "segue os mesmos parâmetros de taxa e proporção IDS
+     reportados em estudos experimentais do corpus". Organick mediu 0,6% por posição, com
+     predominância de substituições; a grade vai de 2% a 30%, com as proporções de Xie (que são de
+     simulação). Reescrever: as taxas atravessam a faixa simulada por Xie, e as medições reais
+     (0,6% em Illumina, ~12% em nanoporo, Organick) ficam dentro ou abaixo dela.
+12.9 4.5: "Os tamanhos específicos serão fixados na fase de implementação". Fixados: texto de
+     3.920 bytes (abstract repetido, 6.1) e imagem PGM de 16.399 bytes (9.3).
+12.10 1.2 pergunta "a partir de qual taxa" uma supera a outra: não há cruzamento na recuperação
+     (11.1); o texto precisa acolher esse resultado e a ablação (14).
+12.11 Arquivo de validação diferente do de Xie (6.1): incluir o parágrafo justificativo.
+12.12 Imagem: o cabeçalho do PGM (15 bytes) fica na sequência 0. Se ela falhar, o arquivo
+     recuperado não abre num visualizador comum; a interface mostra os pixels com as dimensões
+     do original e avisa (10.2). Declarar.
+
+
+13. LIMITAÇÕES A DECLARAR
 ------------------------
 
 - Canal idealizado (erros uniformes). Sharma et al. (2024) mostram que reconstruir leituras
@@ -316,5 +455,23 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 - Assimetria C x Python na medida de tempo (5.5).
 - Sem embaralhamento nem restrições de codificação (1.1, 1.6).
 - Arquivo de validação diferente do de Xie (6.1).
-- Tempo medido inclui a partida do MAFFT (~0,14 s por grupo) e pode ser inflado por execuções
-  em paralelo (8.4).
+- Tempo medido inclui a partida do MAFFT (0,065 s por grupo na máquina dos experimentos) e seria
+  inflado por execuções em paralelo; por isso as grades rodam uma por vez (8.4).
+
+
+14. ABLAÇÃO: QUANDO A REDUNDÂNCIA LÓGICA COMPENSA
+-------------------------------------------------
+
+14.1 Pergunta: com a reconstrução fixa, quanto o Reed-Solomon acrescenta, e a que custo de
+     densidade? Compara-se a Condição B com redundância 0% (só a reconstrução, mesma densidade da
+     A: 1,87 bits/nt) até 50%.
+14.2 Por que só a Condição B: as leituras das moléculas de dados não dependem da redundância (a
+     paridade fica no fim, 2.7), então o MAFFT daria exatamente os mesmos números da grade final.
+14.3 Grade: a mesma da grade final do texto (9.2); redundâncias 0%, 5%, 10%, 15%, 25% e 50%;
+     reconstrução BMA. Tudo num único CSV (results/ablacao.csv), com a redundância como coluna.
+14.4 Leitura: para cada taxa e profundidade, comparar a recuperação com redundância r contra a
+     de 0%. A redundância "compensa" onde o ganho de recuperação aparece; o custo é a queda de
+     densidade, 1,87 / (1 + r) bits/nt.
+14.5 As variantes de reconstrução (DBMA e NW-POA) rodam na mesma grade com 0% e 15%
+     (results/reconstrucoes.csv), para separar o efeito do algoritmo de consenso do efeito do RS.
+

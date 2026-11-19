@@ -74,3 +74,12 @@ def bma(reads: list[str], length: int, lookahead: int = LOOKAHEAD) -> str:
                 pointers[k] = realign(reads[k], pointers[k], base, ahead)
         consensus.append(base)
     return "".join(consensus)
+
+
+# roda o BMA nas primeiras 60 bases
+# e, com as leituras invertidas, nas ultimas 60, e junta as metades
+def double_sided_bma(reads: list[str], length: int, lookahead: int = LOOKAHEAD) -> str:
+    half = length // 2
+    forward = bma(reads, half, lookahead)
+    backward = bma([read[::-1] for read in reads], length - half, lookahead)
+    return forward + backward[::-1]
