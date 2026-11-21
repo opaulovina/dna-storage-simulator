@@ -15,10 +15,11 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 1.2 Cada sequência tem 120 bases: 8 de índice + 112 de dados (28 bytes).
     Fonte: Xie et al. (2023); monografia 2.1 e Figura 1b.
 
-1.3 O índice vem antes dos dados e é escrito em base 4 (8 bases = até 65.536 sequências,
-    cerca de 1,8 MB por arquivo).
+1.3 O índice vem antes dos dados e é escrito em base 4 (8 bases = até 65.536 sequências de
+    28 bytes, ou seja, até 1,75 MB por arquivo).
     Por quê: as moléculas ficam misturadas; o índice diz a ordem.
-    Fonte: Figura 1b; Organick et al. (2018). Limite de tamanho: decisão nossa.
+    Fonte: Figura 1b; Organick et al. (2018). O limite de tamanho é consequência do índice de
+    8 bases de Xie, não uma escolha à parte.
 
 1.4 Sem primers.
     Por quê: acesso aleatório não faz parte da simulação.
@@ -385,10 +386,10 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 10.2 Entrada: só envio de arquivo, de qualquer formato (a 4.5 da monografia trata o arquivo como
      sequência de bytes). Os exemplos (abstract e imagem) saíram da interface: eram arquivos de
      teste dos experimentos e continuam em data/.
-     Limite: 1,75 MB (1.835.008 bytes). Não é escolha de desempenho: o índice tem 8 bases em
-     base 4, então numera no máximo 4^8 = 65.536 sequências de 28 bytes (1.3). O limite do
-     servidor do Streamlit foi posto em 2 MB (.streamlit/config.toml); o app recusa acima de
-     1,75 MB e explica por quê. Arquivo vazio também é recusado.
+     Arquivo: aceita qualquer formato até 1,75 MB (1.835.008 bytes). Esse limite vem do índice,
+     não do desempenho: 8 bases em base 4 numeram no máximo 4^8 = 65.536 sequências de 28 bytes
+     (1.3). O limite do servidor do Streamlit foi posto em 2 MB (.streamlit/config.toml); o app
+     recusa acima de 1,75 MB e explica por quê. Arquivo vazio também é recusado.
 10.3 Antes de rodar, o app mostra o tamanho, o número de sequências e o tempo estimado na máquina
      dos experimentos: sequências x (0,072 + 0,0008 x profundidade) segundos. Os coeficientes
      são a reta ajustada aos tempos da grade final (A + B por sequência; 0,078 s com 5 leituras,
