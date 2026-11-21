@@ -34,6 +34,15 @@ python experiments/validate_xie.py data/abstract_3920.txt
 The raw results, the run environment and a heatmap are written to
 `results/validation_xie.csv`, `results/validation_xie.json` and `results/validation_xie.png`.
 
+## Comparison with Xie et al. figures
+
+```bash
+python experiments/compare_xie.py
+```
+
+Compares `results/validation_xie.csv` with values transcribed by hand from Figures 1 and 2a of
+Xie et al. (2023), stored in `data/xie_figuras.csv`.
+
 ## Pilot run
 
 Measures, on the current machine, the cost of each condition, whether running several
@@ -92,9 +101,11 @@ hardware and the software versions.
 streamlit run app/app.py
 ```
 
-The app runs both conditions on the same noisy reads for a chosen file and parameters (including
-the reconstruction used by Condition B: BMA, Double-sided BMA or NW-POA), shows the metrics side
-by side, maps which sequences failed, and displays the recovered text or image. A
+Upload any file up to 1.75 MB (the 8-base index addresses at most 4^8 = 65,536 sequences of
+28 bytes) and choose the error rate, sequencing depth, I:D:S weights, seed, the reconstruction
+used by Condition B (BMA, Double-sided BMA or NW-POA) and the Reed-Solomon redundancy. The app
+runs both conditions on the same noisy reads, shows the metrics side by side, maps which
+sequences failed, and previews and lets you download the original and both recovered files. A
 second tab plots the results of the batch experiments, and a third shows the validation against
 Xie et al. (2023).
 

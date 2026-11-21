@@ -9,26 +9,58 @@ app_module = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(app_module)
 
 
-def test_app_opens_with_the_three_tabs():
+def test_app_opens_asking_for_a_file():
     app = AppTest.from_file(str(APP)).run(timeout=60)
     assert not app.exception
     assert [tab.label for tab in app.tabs] == ["Simular", "Resultados", "Validação (Xie)"]
+    assert "Envie um arquivo" in app.info[0].value
+
+
+def test_sidebar_has_the_channel_and_condition_b_controls():
+    app = AppTest.from_file(str(APP)).run(timeout=60)
+    assert app.sidebar.selectbox[0].options == ["BMA", "DBMA", "NW-POA"]
+    assert [box.label for box in app.sidebar.number_input] == ["I", "D", "S", "Semente"]
 
 
 def test_simulation_shows_both_conditions():
-    app = AppTest.from_file(str(APP)).run(timeout=60)
+    app = AppTest.from_file(str(APP), default_timeout=120).run()
+    app.sidebar.file_uploader[0].set_value(("teste.txt", bytes(range(56)), "text/plain"))
+    app.run()
     app.sidebar.slider[0].set_value(0.0)
     app.sidebar.select_slider[0].set_value(1)
-    app.button[0].click().run(timeout=300)
+    app.run()
+    app.button[0].click().run()
     assert not app.exception
     table = app.dataframe[0].value
     assert list(table.index) == ["MAFFT", "BMA + RS 15%"]
     assert list(table["taxa de recuperação"]) == [1.0, 1.0]
+    assert [button.label for button in app.get("download_button")] == ["Baixar", "Baixar"]
 
 
-def test_reconstruction_can_be_chosen():
-    app = AppTest.from_file(str(APP)).run(timeout=60)
-    assert app.sidebar.selectbox[0].options == ["BMA", "DBMA", "NW-POA"]
+def test_empty_and_oversized_files_are_refused():
+    app = AppTest.from_file(str(APP), default_timeout=60).run()
+    app.sidebar.file_uploader[0].set_value(("vazio.txt", b"", "text/plain")).run()
+    assert "vazio" in app.sidebar.error[0].value
+    big = bytes(app_module.MAX_BYTES + 1)
+    app.sidebar.file_uploader[0].set_value(("grande.bin", big, "application/octet-stream")).run()
+    assert "1,75 MB" in app.sidebar.error[0].value
+
+
+def test_footer_is_at_the_bottom_of_the_sidebar():
+    app = AppTest.from_file(str(APP), default_timeout=60).run()
+    assert app.sidebar.caption[-1].value == "made by: Paulo Vinícius Silva - 2026"
+
+
+def test_file_kinds_cover_common_formats():
+    assert app_module.kind("foto.JPG", b"") == "image"
+    assert app_module.kind("som.wav", b"") == "audio"
+    assert app_module.kind("leituras.fastq", b"") == "text"
+    assert app_module.kind("sem_extensao", b"texto comum") == "text"
+    assert app_module.kind("planilha.xlsx", bytes([0xFF, 0xFE, 0x00, 0x81])) == "other"
+
+
+def test_upload_limit_is_the_capacity_of_the_index():
+    assert app_module.MAX_BYTES == 65_536 * 28
 
 
 def test_pgm_pixels_survive_a_corrupted_header():
