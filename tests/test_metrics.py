@@ -8,6 +8,7 @@ from dna_storage.correction.base import Corrector
 from dna_storage.metrics import (
     PeakMemory,
     alignment,
+    failure_site,
     hamming,
     mean_hamming,
     measure,
@@ -91,3 +92,14 @@ def test_peak_memory_counts_external_programs():
             check=True,
         )
     assert memory.kib >= 40 * 1024
+
+
+def test_failure_site_separates_index_and_payload():
+    original = encode(bytes(range(28)))[0]
+    wrong_index = "C" + original[1:]
+    wrong_payload = original[:-1] + ("A" if original[-1] != "A" else "C")
+    assert failure_site(original, original) == "ok"
+    assert failure_site(wrong_index, original) == "index"
+    assert failure_site(wrong_payload, original) == "payload"
+    assert failure_site("C" + wrong_payload[1:], original) == "both"
+    assert failure_site(original[:100], original) == "payload"

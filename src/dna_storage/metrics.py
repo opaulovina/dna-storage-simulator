@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import psutil
 
+from dna_storage.codec.payload import INDEX_LENGTH
 from dna_storage.correction.base import Corrector
 
 SAMPLING_INTERVAL = 0.01
@@ -55,6 +56,21 @@ def mean_hamming(recovered: list[str], original: list[str]) -> float:
         for new, old in zip(recovered, original, strict=True)
     ]
     return sum(distances) / len(distances)
+
+
+def failure_site(recovered: str, original: str) -> str: # se as 8 primeiras bases diferem da original
+# é o index
+# se o resto difere da original - payload
+# devolve: ok, index, payload ou both
+    index = recovered[:INDEX_LENGTH] != original[:INDEX_LENGTH]
+    payload = recovered[INDEX_LENGTH:] != original[INDEX_LENGTH:]
+    if index and payload:
+        return "both"
+    if index:
+        return "index"
+    if payload:
+        return "payload"
+    return "ok"
 
 
 @dataclass(frozen=True)

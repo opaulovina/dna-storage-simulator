@@ -10,8 +10,10 @@ from dna_storage.codec.payload import encode
 from dna_storage.correction.reed_solomon import add_parity
 from dna_storage.experiment import (
     CONDITIONS,
+    SITES,
     Trial,
     corrector_for,
+    failure_counts,
     label,
     run_condition,
     series_name,
@@ -19,6 +21,7 @@ from dna_storage.experiment import (
 
 DATA = bytes(range(56))
 SCRIPT = Path(__file__).parents[1] / "experiments" / "run_experiments.py"
+SITES_SCRIPT = Path(__file__).parents[1] / "experiments" / "failure_sites.py"
 
 
 def test_parity_at_the_end_keeps_the_data_reads_identical():
@@ -160,3 +163,42 @@ def test_batch_script_refuses_a_csv_with_old_columns(tmp_path):
     )
     assert result.returncode != 0
     assert "versão anterior" in result.stderr
+
+
+@pytest.mark.parametrize("condition", CONDITIONS)
+def test_failure_counts_add_up_to_the_failed_sequences(condition):
+    trial = Trial(error_rate=0.15, depth=3, seed=1)
+    row = failure_counts(DATA, trial, condition)
+    failed = round((1 - row["recovery_rate"]) * row["sequences"])
+    assert sum(row[site] for site in SITES) == failed
+
+
+def test_failure_sites_script_runs_both_conditions_and_resumes(tmp_path):
+    source = tmp_path / "input.bin"
+    source.write_bytes(DATA)
+    output = tmp_path / "falhas"
+    command = [
+        sys.executable,
+        str(SITES_SCRIPT),
+        str(source),
+        "--error-rates",
+        "0.05",
+        "--depths",
+        "3",
+        "--repetitions",
+        "1",
+        "--workers",
+        "2",
+        "--output",
+        str(output),
+    ]
+    subprocess.run(command, check=True, capture_output=True)
+    with open(output.with_suffix(".csv"), newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert {(row["condition"], row["redundancy"]) for row in rows} == {
+        ("MAFFT", "0.0"),
+        ("RS híbrido", "0.0"),
+        ("RS híbrido", "0.15"),
+    }
+    again = subprocess.run(command, check=True, capture_output=True, text=True)
+    assert "0 a fazer" in again.stdout

@@ -2,6 +2,7 @@ import hashlib
 import platform
 import shutil
 import subprocess
+from collections import Counter
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
@@ -13,9 +14,10 @@ from dna_storage.codec.payload import SEQUENCE_LENGTH, encode
 from dna_storage.correction.base import Corrector
 from dna_storage.correction.mafft import MafftCorrector
 from dna_storage.correction.reed_solomon import REDUNDANCY, RsHybridCorrector, add_parity
-from dna_storage.metrics import mean_hamming, measure, recovery_rate
+from dna_storage.metrics import failure_site, mean_hamming, measure, recovery_rate
 
 CONDITIONS = (MafftCorrector.name, RsHybridCorrector.name)
+SITES = ("index", "payload", "both")
 PACKAGES = (
     "dna-storage-simulator",
     "numpy",
@@ -99,6 +101,23 @@ def evaluate(data: bytes, trial: Trial, condition: str) -> tuple[dict, list[str]
 # só a linha, para o modo experimental
 def run_condition(data: bytes, trial: Trial, condition: str) -> dict:
     return evaluate(data, trial, condition)[0]
+
+
+def failure_counts(data: bytes, trial: Trial, condition: str) -> dict: # roda evaluate e para cada sequencia recuperada:
+# sites conta quantas cairam em cada categoria
+# devolve a linha com a configuracao e as tres contagens
+    row, recovered = evaluate(data, trial, condition)
+    sites = Counter(
+        failure_site(new, old) for new, old in zip(recovered, encode(data), strict=True)
+    )
+    fields = ("condition", "ids_ratio", "error_rate", "depth", "seed", "redundancy")
+    return {
+        **{field: row[field] for field in fields},
+        "reconstruction": row["reconstruction"],
+        "sequences": row["sequences"],
+        "recovery_rate": row["recovery_rate"],
+        **{site: sites[site] for site in SITES},
+    }
 
 
 def processor() -> str:

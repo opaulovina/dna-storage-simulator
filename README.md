@@ -95,6 +95,30 @@ python experiments/run_experiments.py data/abstract_3920.txt \
 Each CSV has one row per condition and run; the matching JSON stores the input checksum, the
 hardware and the software versions.
 
+## Failure sites
+
+Re-runs the grid and classifies every failed sequence as an index error (first 8 nt), a payload
+error or both. Time is not measured here, so it can run in parallel:
+
+```bash
+python experiments/failure_sites.py data/abstract_3920.txt \
+    --error-rates 0.02 0.04 0.06 0.08 0.10 0.12 0.14 0.16 0.18 0.20 0.25 0.30 \
+    --depths 5 10 20 30 50 100 --ratios 1:1:1 1:1:2 --repetitions 3 \
+    --redundancy 0 0.05 0.15 0.50 --output results/falhas
+```
+
+## Analysis
+
+```bash
+python experiments/analyze.py
+```
+
+Reads the text grids (`final_texto`, `ablacao`, `reconstrucoes`), the image grid and the failure
+sites, and writes tables (CSV) and figures (PDF and PNG) to `results/analise/`: recovery per
+depth, full-recovery limits, Reed-Solomon gain, reconstruction variants, minimum sequencing cost
+and time per sequence. The findings are summarised (in Portuguese) in section 15 of
+[`docs/ESCOPO.txt`](docs/ESCOPO.txt).
+
 ## Interactive app
 
 ```bash

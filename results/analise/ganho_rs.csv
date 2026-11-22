@@ -1,0 +1,6 @@
+series,densidade,ganho_medio,maior_ganho,pontos_com_ganho,pontos_com_perda
+BMA + RS 5%,1.778,0.0014,0.033,25,0
+BMA + RS 10%,1.697,0.0034,0.038,39,0
+BMA + RS 15%,1.623,0.0054,0.055,46,0
+BMA + RS 25%,1.493,0.0088,0.1,49,0
+BMA + RS 50%,1.244,0.0159,0.19,58,0

@@ -329,7 +329,7 @@ def input_checksum(path):
 # embaixo mostra a tabela
 def results_tab():
     files = sorted(RESULTS.glob("*.csv"), key=lambda file: (file.stem != "final_texto", file.stem))
-    files = [file for file in files if file.stem not in {"pilot", "validation_xie"}]
+    files = [file for file in files if file.stem not in {"pilot", "validation_xie", "falhas"}]
     if not files:
         st.info("Rode experiments/run_experiments.py para gerar resultados.")
         return
