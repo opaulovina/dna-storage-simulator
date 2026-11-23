@@ -10,7 +10,7 @@ from PIL import Image
 
 from dna_storage.codec.mapping import RADIX
 from dna_storage.codec.payload import BYTES_PER_SEQUENCE, INDEX_LENGTH, encode, rebuild
-from dna_storage.correction.reed_solomon import RECONSTRUCTIONS
+from dna_storage.correction.reed_solomon import ADDRESSES, RECONSTRUCTIONS, molecule_count
 from dna_storage.experiment import CONDITIONS, Trial, evaluate, series_name
 from dna_storage.metrics import hamming
 
@@ -27,6 +27,7 @@ TEXT_SUFFIXES = {
     ".txt", ".csv", ".tsv", ".md", ".json", ".xml", ".html", ".htm", ".fasta", ".fa", ".fastq",
     ".fq", ".py", ".log", ".yaml", ".yml", ".toml", ".ini",
 }
+DIAGNOSTICS = {"pilot", "validation_xie", "falhas", "mafft_120"}
 TEXT_PREVIEW = 3000
 MAP_LIMIT = 2000
 DEPTHS = (1, 5, 10, 20, 30, 50, 100)
@@ -228,6 +229,14 @@ def simulate_tab(name, data):
         st.error("A proporção I:D:S precisa de pelo menos um valor maior que zero.")
         return
     sequences = encode(data)
+    molecules = molecule_count(len(sequences), settings["redundancy"])
+    if molecules > ADDRESSES:
+        st.error(
+            f"Com redundância de {settings['redundancy']:.0%}, a Condição B precisa de "
+            f"{molecules:,} moléculas, e o índice de 8 bases numera no máximo {ADDRESSES:,}. "
+            "Diminua a redundância ou use um arquivo menor.".replace(",", ".")
+        )
+        return
     seconds = estimated_seconds(len(sequences), settings["depth"])
     st.write(f"**{name}**: {len(data)} bytes, {len(sequences)} sequências de 120 bases.")
     st.caption(
@@ -329,7 +338,7 @@ def input_checksum(path):
 # embaixo mostra a tabela
 def results_tab():
     files = sorted(RESULTS.glob("*.csv"), key=lambda file: (file.stem != "final_texto", file.stem))
-    files = [file for file in files if file.stem not in {"pilot", "validation_xie", "falhas"}]
+    files = [file for file in files if file.stem not in DIAGNOSTICS]
     if not files:
         st.info("Rode experiments/run_experiments.py para gerar resultados.")
         return
@@ -386,16 +395,6 @@ def results_tab():
     st.dataframe(pivot, width="stretch")
 
 
-# figura de validacao
-def validation_tab():
-    figure = RESULTS / "validation_xie.png"
-    if figure.exists():
-        st.image(str(figure))
-        st.caption("Taxa de recuperação da Condição A nos parâmetros de Xie et al. (2023).")
-    else:
-        st.info("Rode experiments/validate_xie.py para gerar a validação.")
-
-
 def main():
     st.set_page_config(
         page_title="Simulador de correção de erros em DNA",
@@ -411,14 +410,12 @@ def main():
     st.caption(
         "Compara o MAFFT (Condição A) e o Reed-Solomon híbrido (Condição B) nas mesmas leituras."
     )
-    simulate, results, validation = st.tabs(["Simular", "Resultados", "Validação (Xie)"])
+    simulate, results = st.tabs(["Simular", "Resultados"])
     with simulate:
         simulate_tab(name, data)
     st.sidebar.caption("made by: Paulo Vinícius Silva - 2026")
     with results:
         results_tab()
-    with validation:
-        validation_tab()
 
 
 if __name__ == "__main__":

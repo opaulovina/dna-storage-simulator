@@ -94,8 +94,22 @@ def test_cheapest_depth_needs_full_recovery_in_every_seed(tmp_path):
 
 
 def test_analysis_script_writes_tables_and_figures_from_the_results(tmp_path):
-    subprocess.run([sys.executable, str(SCRIPT), "--output", str(tmp_path)], cwd=ROOT, check=True)
+    mafft = tmp_path / "mafft_120.csv"
+    mafft.write_text(
+        "ids_ratio,error_rate,depth,seed,sequences,recovery_rate,recovery_rate_120\n"
+        "1:1:1,0.1,10,0,140,0.25,0.5\n"
+    )
+    sha = json.loads((ROOT / "results" / "final_texto.json").read_text())["sha256"]
+    mafft.with_suffix(".json").write_text(json.dumps({"sha256": sha}))
+    output = tmp_path / "analise"
+    subprocess.run(
+        [sys.executable, str(SCRIPT), "--output", str(output), "--mafft-length", str(mafft)],
+        cwd=ROOT,
+        check=True,
+    )
     for name in ("limites.csv", "contra_mafft.csv", "ganho_rs.csv", "custo_minimo.csv"):
-        assert (tmp_path / name).exists()
-    assert (tmp_path / "recuperacao_111.pdf").exists()
-    assert (tmp_path / "custo_leitura.png").exists()
+        assert (output / name).exists()
+    assert (output / "recuperacao_111.pdf").exists()
+    assert (output / "custo_leitura.png").exists()
+    summary = pd.read_csv(output / "mafft_120.csv")
+    assert summary[["MAFFT", "MAFFT (120 colunas)"]].values.tolist() == [[0.25, 0.5]]

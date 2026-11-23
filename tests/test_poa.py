@@ -1,6 +1,6 @@
 from dna_storage.channel import ChannelConfig, simulate_reads
 from dna_storage.codec.payload import SEQUENCE_LENGTH, encode
-from dna_storage.correction.poa import nw_poa
+from dna_storage.correction.poa import fixed_length_consensus, nw_poa
 
 SEQUENCE = encode(bytes(range(28)))[0]
 
@@ -41,3 +41,9 @@ def test_low_error_rate_is_fully_recovered():
     sequences = encode(bytes(range(256)))
     clusters = simulate_reads(sequences, ChannelConfig(error_rate=0.03, depth=30, seed=1))
     assert [nw_poa(reads, SEQUENCE_LENGTH) for reads in clusters] == sequences
+
+
+def test_fixed_length_consensus_drops_gap_columns_and_pads_short_alignments():
+    alignment = ["AC-GT", "AC-GT", "ACTGT"]
+    assert fixed_length_consensus(alignment, 4) == "ACGT"
+    assert fixed_length_consensus(["AC", "AC"], 4) == "ACAA"

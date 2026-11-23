@@ -255,6 +255,18 @@ def failure_summary(failures):
     return summary, full_recovery_limit(payload)
 
 
+def mafft_length_summary(diagnostic, points):
+    point = ["series", "ids_ratio", "error_rate", "depth"]
+    fixed = diagnostic.assign(recovery_rate=diagnostic["recovery_rate_120"])
+    runs = pd.concat(
+        [diagnostic.assign(series="MAFFT"), fixed.assign(series="MAFFT (120 colunas)")]
+    )
+    means = by_point(runs).pivot_table(index=point[1:], columns="series", values="mean")
+    bma = points[points["series"] == "BMA (sem RS)"].set_index(point[1:])["mean"]
+    means["BMA (sem RS)"] = bma.reindex(means.index)
+    return means.round(3), full_recovery_limit(runs)
+
+
 def by_depth(limits):
     return limits.pivot_table(index=["ids_ratio", "series"], columns="depth", values="limit")
 
@@ -264,6 +276,7 @@ def main():
     parser.add_argument("--text", type=Path, nargs="+", default=[Path(path) for path in TEXT])
     parser.add_argument("--image", type=Path, default=Path("results/final_imagem.csv"))
     parser.add_argument("--failures", type=Path, default=Path("results/falhas.csv"))
+    parser.add_argument("--mafft-length", type=Path, default=Path("results/mafft_120.csv"))
     parser.add_argument("--output", type=Path, default=Path("results/analise"))
     args = parser.parse_args()
 
@@ -288,6 +301,12 @@ def main():
         summary, payload_limits = failure_summary(pd.read_csv(args.failures))
         summary.to_csv(folder / "falhas_resumo.csv")
         by_depth(payload_limits).to_csv(folder / "limites_so_payload.csv")
+    if args.mafft_length.exists():
+        if checksum(args.mafft_length) != checksum(args.text[0]):
+            raise SystemExit(f"{args.mafft_length} foi gerado com outro arquivo de entrada")
+        means, length_limits = mafft_length_summary(pd.read_csv(args.mafft_length), points)
+        means.to_csv(folder / "mafft_120.csv")
+        by_depth(length_limits).to_csv(folder / "limites_mafft_120.csv")
 
     for ratio in sorted(runs["ids_ratio"].unique()):
         recovery_figure(points, ratio, folder)

@@ -12,7 +12,8 @@ import psutil
 from dna_storage.channel import ChannelConfig, simulate_reads
 from dna_storage.codec.payload import SEQUENCE_LENGTH, encode
 from dna_storage.correction.base import Corrector
-from dna_storage.correction.mafft import MafftCorrector
+from dna_storage.correction.mafft import MafftCorrector, consensus
+from dna_storage.correction.poa import fixed_length_consensus
 from dna_storage.correction.reed_solomon import REDUNDANCY, RsHybridCorrector, add_parity
 from dna_storage.metrics import failure_site, mean_hamming, measure, recovery_rate
 
@@ -103,9 +104,10 @@ def run_condition(data: bytes, trial: Trial, condition: str) -> dict:
     return evaluate(data, trial, condition)[0]
 
 
-def failure_counts(data: bytes, trial: Trial, condition: str) -> dict: # roda evaluate e para cada sequencia recuperada:
+# roda evaluate e para cada sequencia recuperada:
 # sites conta quantas cairam em cada categoria
 # devolve a linha com a configuracao e as tres contagens
+def failure_counts(data: bytes, trial: Trial, condition: str) -> dict:
     row, recovered = evaluate(data, trial, condition)
     sites = Counter(
         failure_site(new, old) for new, old in zip(recovered, encode(data), strict=True)
@@ -117,6 +119,24 @@ def failure_counts(data: bytes, trial: Trial, condition: str) -> dict: # roda ev
         "sequences": row["sequences"],
         "recovery_rate": row["recovery_rate"],
         **{site: sites[site] for site in SITES},
+    }
+
+
+def mafft_length_counts(data: bytes, trial: Trial) -> dict:
+    sequences = encode(data)
+    config = ChannelConfig(trial.error_rate, trial.depth, trial.seed, trial.ids_ratio)
+    mafft = MafftCorrector()
+    alignments = [mafft.align(reads) for reads in simulate_reads(sequences, config)]
+    free = [consensus(alignment) for alignment in alignments]
+    fixed = [fixed_length_consensus(alignment, SEQUENCE_LENGTH) for alignment in alignments]
+    return {
+        "ids_ratio": label(trial.ids_ratio),
+        "error_rate": trial.error_rate,
+        "depth": trial.depth,
+        "seed": trial.seed,
+        "sequences": len(sequences),
+        "recovery_rate": recovery_rate(free, sequences),
+        "recovery_rate_120": recovery_rate(fixed, sequences),
     }
 
 

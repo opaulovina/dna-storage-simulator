@@ -58,10 +58,11 @@ def mean_hamming(recovered: list[str], original: list[str]) -> float:
     return sum(distances) / len(distances)
 
 
-def failure_site(recovered: str, original: str) -> str: # se as 8 primeiras bases diferem da original
+# se as 8 primeiras bases diferem da original
 # é o index
 # se o resto difere da original - payload
 # devolve: ok, index, payload ou both
+def failure_site(recovered: str, original: str) -> str:
     index = recovered[:INDEX_LENGTH] != original[:INDEX_LENGTH]
     payload = recovered[INDEX_LENGTH:] != original[INDEX_LENGTH:]
     if index and payload:

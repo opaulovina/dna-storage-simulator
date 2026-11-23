@@ -15,6 +15,7 @@ from dna_storage.experiment import (
     corrector_for,
     failure_counts,
     label,
+    mafft_length_counts,
     run_condition,
     series_name,
 )
@@ -22,6 +23,7 @@ from dna_storage.experiment import (
 DATA = bytes(range(56))
 SCRIPT = Path(__file__).parents[1] / "experiments" / "run_experiments.py"
 SITES_SCRIPT = Path(__file__).parents[1] / "experiments" / "failure_sites.py"
+LENGTH_SCRIPT = Path(__file__).parents[1] / "experiments" / "mafft_length.py"
 
 
 def test_parity_at_the_end_keeps_the_data_reads_identical():
@@ -200,5 +202,36 @@ def test_failure_sites_script_runs_both_conditions_and_resumes(tmp_path):
         ("RS híbrido", "0.0"),
         ("RS híbrido", "0.15"),
     }
+    again = subprocess.run(command, check=True, capture_output=True, text=True)
+    assert "0 a fazer" in again.stdout
+
+
+def test_mafft_length_counts_both_consensus_rules_on_the_same_alignment():
+    row = mafft_length_counts(DATA, Trial(error_rate=0.0, depth=3, seed=0))
+    assert row["recovery_rate"] == row["recovery_rate_120"] == 1.0
+
+
+def test_mafft_length_script_writes_one_row_per_run_and_resumes(tmp_path):
+    source = tmp_path / "input.bin"
+    source.write_bytes(DATA)
+    output = tmp_path / "mafft_120"
+    command = [
+        sys.executable,
+        str(LENGTH_SCRIPT),
+        str(source),
+        "--error-rates",
+        "0.05",
+        "--depths",
+        "3",
+        "--repetitions",
+        "2",
+        "--workers",
+        "2",
+        "--output",
+        str(output),
+    ]
+    subprocess.run(command, check=True, capture_output=True)
+    with open(output.with_suffix(".csv"), newline="") as handle:
+        assert len(list(csv.DictReader(handle))) == 2
     again = subprocess.run(command, check=True, capture_output=True, text=True)
     assert "0 a fazer" in again.stdout

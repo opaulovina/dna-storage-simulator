@@ -1,14 +1,18 @@
 import pytest
 
 from dna_storage.channel import ChannelConfig, simulate_reads
-from dna_storage.codec.mapping import BASES, bases_to_int
+from dna_storage.codec.mapping import BASES, bases_to_int, int_to_bases
 from dna_storage.codec.payload import INDEX_LENGTH, SEQUENCE_LENGTH, encode
 from dna_storage.correction.base import Corrector
 from dna_storage.correction.reed_solomon import (
+    CODEWORD_LIMIT,
     RsHybridCorrector,
     add_parity,
     layout,
+    molecule_count,
     parity_count,
+    to_payload,
+    to_symbols,
     unit_size,
 )
 
@@ -31,11 +35,23 @@ def test_parity_count_ignores_floating_point_noise():
     assert parity_count(20, 0.15) == 3
 
 
-def test_units_never_exceed_255_symbols():
-    assert unit_size(0.15) == 221
-    for data, extra in layout(1000, 0.15):
-        assert len(data) + len(extra) <= 255
-    assert sum(len(data) for data, _ in layout(1000, 0.15)) == 1000
+def test_symbols_have_16_bits_and_one_long_codeword_covers_a_typical_file():
+    assert CODEWORD_LIMIT == 65_535
+    assert to_symbols(bytes([1, 2, 3, 4])) == [0x0102, 0x0304]
+    assert to_payload([0x0102, 0x0304]) == bytes([1, 2, 3, 4])
+    assert layout(586, 0.15) == [(range(0, 586), range(586, 674))]
+
+
+def test_units_never_exceed_the_codeword_limit():
+    for data, extra in layout(60_000, 0.15):
+        assert len(data) + len(extra) <= CODEWORD_LIMIT
+    assert sum(len(data) for data, _ in layout(60_000, 0.15)) == 60_000
+
+
+def test_data_and_parity_must_fit_in_the_index():
+    assert molecule_count(140, 0.15) == 161
+    with pytest.raises(ValueError, match="65536"):
+        add_parity(["A" * SEQUENCE_LENGTH] * 60_000, 0.15)
 
 
 def test_zero_redundancy_adds_nothing():
@@ -87,13 +103,47 @@ def test_eleven_wrong_bytes_in_one_row_are_beyond_capacity():
     assert RsHybridCorrector(140).correct(clusters) != SEQUENCES
 
 
-def test_the_index_is_not_protected_by_the_outer_code():
+def readdress(sequence: str, address: int) -> str:
+    return int_to_bases(address, INDEX_LENGTH) + sequence[INDEX_LENGTH:]
+
+
+def test_an_address_out_of_range_becomes_an_erasure_and_is_recovered():
     stored = add_parity(SEQUENCES)
     clusters = [[sequence] for sequence in stored]
     clusters[5] = [substitute(stored[5], 0)]
-    recovered = RsHybridCorrector(140).correct(clusters)
-    assert recovered[5] != SEQUENCES[5]
-    assert recovered[5][INDEX_LENGTH:] == SEQUENCES[5][INDEX_LENGTH:]
+    assert RsHybridCorrector(140).correct(clusters) == SEQUENCES
+
+
+def test_a_repeated_address_discards_every_strand_that_claims_it():
+    stored = add_parity(SEQUENCES)
+    clusters = [[sequence] for sequence in stored]
+    clusters[5] = [readdress(stored[5], 6)]
+    corrector = RsHybridCorrector(140)
+    reconstructed = [cluster[0] for cluster in clusters]
+    assert 5 not in corrector.place(reconstructed)
+    assert 6 not in corrector.place(reconstructed)
+    assert corrector.correct(clusters) == SEQUENCES
+
+
+def test_up_to_21_erasures_are_recovered():
+    stored = add_parity(SEQUENCES)
+    clusters = [[sequence] for sequence in stored]
+    for column in range(21):
+        clusters[column] = [readdress(stored[column], 1000 + column)]
+    assert RsHybridCorrector(140).correct(clusters) == SEQUENCES
+    clusters[21] = [readdress(stored[21], 2000)]
+    assert RsHybridCorrector(140).correct(clusters) != SEQUENCES
+
+
+def test_two_errors_cost_as_much_as_four_erasures():
+    stored = add_parity(SEQUENCES)
+    clusters = [[sequence] for sequence in stored]
+    for column in range(10):
+        clusters[column] = [substitute(stored[column], INDEX_LENGTH)]
+    clusters[20] = [readdress(stored[20], 1000)]
+    assert RsHybridCorrector(140).correct(clusters) == SEQUENCES
+    clusters[21] = [readdress(stored[21], 1001)]
+    assert RsHybridCorrector(140).correct(clusters) != SEQUENCES
 
 
 def test_moderate_noise_is_fully_recovered():

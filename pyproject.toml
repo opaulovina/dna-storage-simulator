@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dna-storage-simulator"
-version = "0.1.0"
+version = "0.2.0"
 description = "Simulador de correcao de erros em armazenamento de dados em DNA: analise comparativa entre MAFFT e Reed-Solomon"
 readme = "README.md"
 requires-python = ">=3.12"

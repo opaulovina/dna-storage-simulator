@@ -9,10 +9,14 @@ GLOBAL_ALIGNMENT = 1
 
 # alinha as leituras com o NW global sobre grafo de ordem parcial
 # se o alinhamento passar de 120 colunas, tira as que têm mais lacunas
-#cada coluna vota só entre bases
+# cada coluna vota só entre bases
 # se o alinhamento tiver menos de 120 colunas, completa com A's à direita
 def nw_poa(reads: list[str], length: int) -> str:
     _, alignment = poa(reads, algorithm=GLOBAL_ALIGNMENT)
+    return fixed_length_consensus(alignment, length)
+
+
+def fixed_length_consensus(alignment: list[str], length: int) -> str:
     columns = list(zip(*alignment, strict=True))
     extra = len(columns) - length
     if extra > 0:

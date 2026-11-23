@@ -12,7 +12,7 @@ SPEC.loader.exec_module(app_module)
 def test_app_opens_asking_for_a_file():
     app = AppTest.from_file(str(APP)).run(timeout=60)
     assert not app.exception
-    assert [tab.label for tab in app.tabs] == ["Simular", "Resultados", "Validação (Xie)"]
+    assert [tab.label for tab in app.tabs] == ["Simular", "Resultados"]
     assert "Envie um arquivo" in app.info[0].value
 
 
@@ -69,3 +69,10 @@ def test_pgm_pixels_survive_a_corrupted_header():
     image = app_module.pgm_pixels(corrupted, original)
     assert image.size == (2, 2)
     assert image.tobytes() == bytes([10, 20, 30, 40])
+
+
+def test_condition_b_refuses_more_molecules_than_the_index_addresses():
+    app = AppTest.from_file(str(APP), default_timeout=60).run()
+    big = bytes(60_000 * 28)
+    app.sidebar.file_uploader[0].set_value(("grande.bin", big, "application/octet-stream")).run()
+    assert "65.536" in app.error[0].value

@@ -6,7 +6,7 @@
   "mafft": "v7.505 (2022/Apr/10)",
   "python": "3.12.3",
   "packages": {
-    "dna-storage-simulator": "0.1.0",
+    "dna-storage-simulator": "0.2.0",
     "numpy": "2.5.3",
     "pandas": "3.0.6",
     "matplotlib": "3.11.2",

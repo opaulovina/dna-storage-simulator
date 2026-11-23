@@ -76,3 +76,10 @@ def test_double_sided_bma_low_error_rate_is_fully_recovered():
     sequences = encode(bytes(range(256)))
     clusters = simulate_reads(sequences, ChannelConfig(error_rate=0.03, depth=30, seed=1))
     assert [double_sided_bma(reads, SEQUENCE_LENGTH) for reads in clusters] == sequences
+
+
+def test_half_length_bma_is_the_prefix_of_the_full_length_bma():
+    sequences = encode(bytes(range(256)))
+    for reads in simulate_reads(sequences, ChannelConfig(error_rate=0.15, depth=10, seed=4)):
+        half = SEQUENCE_LENGTH // 2
+        assert bma(reads, half) == bma(reads, SEQUENCE_LENGTH)[:half]

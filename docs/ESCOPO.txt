@@ -50,8 +50,10 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
     Fonte: decisão nossa (Xie diz apenas "uniformly at random").
 
 2.4 Profundidade fixa: toda molécula recebe o mesmo número de leituras. Nenhuma molécula se perde.
-    Consequência: não há "erasures"; a capacidade do RS de recuperar moléculas perdidas não é
-    exercitada. Declarar como limitação.
+    Consequência: a perda de moléculas (Organick, cobertura variável) não é simulada. Os
+    erasures existem mesmo assim: na Condição B, uma molécula cujo endereço sai errado da
+    reconstrução deixa a coluna dela vazia, e o RS a trata como erasure (4.10). Declarar que a
+    perda física de moléculas fica fora.
     Fonte: monografia 4.3.
 
 2.5 Agrupamento perfeito: o simulador sabe de qual sequência veio cada leitura.
@@ -91,14 +93,25 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 4. CONDIÇÃO B (REED-SOLOMON HÍBRIDO)
 ------------------------------------
 
-4.1 Arquitetura de Organick: matriz em que cada molécula é uma coluna e cada um dos 28 bytes do
-    payload é uma linha; cada linha é uma palavra-código Reed-Solomon (código externo).
+4.1 Arquitetura de Organick: matriz em que cada molécula é uma coluna e cada linha é uma
+    palavra-código Reed-Solomon (código externo). Os 28 bytes do payload viram 14 símbolos de 16
+    bits, então a matriz tem 14 linhas.
+    Organick: "a matrix M with up to ten rows and up to 55,000 columns, where every matrix cell
+    carries a 16-bit value". O número de linhas depende do tamanho do payload (lá, 110 nt com o
+    código rotativo; aqui, 112 nt).
     Fonte: Organick et al. (2018); Sharma et al. (2024); monografia 2.3.
 
-4.2 Símbolos de 1 byte (biblioteca reedsolo). Uma palavra-código tem no máximo 255 símbolos, então
-    arquivos grandes viram blocos de até 221 moléculas de dados + paridade.
-    Adaptação: Organick usava símbolos de 16 bits e palavras maiores. Declarar.
-    Fonte: monografia 2.3 (corpo de 256 elementos).
+4.2 Símbolos de 16 bits, corpo de 2^16 = 65.536 elementos (biblioteca reedsolo, c_exp=16; o
+    polinômio primitivo é o que a biblioteca escolhe, 0x1002D, porque Organick não informa o
+    dele). Uma palavra-código tem até 65.535 símbolos, então qualquer arquivo do simulador cabe
+    numa palavra só (o arquivo de 140 sequências: 140 + 21; a imagem: 586 + 88). Organick usava
+    o mesmo: "very long codes (length up to 65,536) to handle large variations in the number of
+    errors between code words".
+    Até a versão 0.1.0 eram símbolos de 1 byte (corpo de 256 elementos, palavras de até 255
+    símbolos, blocos de até 221 moléculas de dados). Mudou para ficar igual a Organick.
+    A monografia (2.3) explica o RS com símbolos de 8 bits como exemplo; o capítulo 4 deve
+    declarar os 16 bits.
+    Fonte: Organick et al. (2018); monografia 2.3.
 
 4.3 Redundância de 15% = moléculas de paridade / moléculas de dados (140 dados -> 21 paridade).
     Fonte: Organick et al. (2018): "redundancy set to 15%, 87% ... raw data, 13% ... redundant".
@@ -133,35 +146,93 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
       isso a regra é nossa (4.5), e não há como garantir que coincide com a deles.
     - O Toolkit de Sharma (código aberto da mesma arquitetura) foi lido como referência, não
       copiado; ele também usa uma regra própria.
-    - Outras diferenças vêm de escolhas da monografia e valem igualmente para A e B: codificação
-      de Xie sem embaralhamento e sem o código rotativo de Organick (1.1, 1.6) e símbolos de 1
-      byte (2.3; Organick usava 16 bits).
+    - Igual a Organick desde a versão 0.2.0: símbolos de 16 bits e palavra-código longa (4.2),
+      endereço fora do RS, decodificação pelo endereço com erasures (4.10).
+    - Diferenças que ficam, todas por escolha da monografia e valendo igualmente para A e B:
+      codificação de Xie sem embaralhamento e sem o código rotativo de Organick (1.1, 1.6), o que
+      também muda o número de linhas (4.1); agrupamento perfeito em vez do agrupamento por
+      semelhança de Organick (2.5); profundidade fixa, sem perda de moléculas (2.4).
+    - O que Organick não descreve e foi decidido aqui: o que fazer com endereços repetidos
+      (4.10) e a regra de classificação do BMA (4.5).
     Fonte: Organick et al. (2018); Sharma et al. (2024); monografia 3.1 e 3.2.
 
-4.7 O índice não é protegido pelo RS (em Organick o endereço é um prefixo fora do código).
-    Para arquivos pequenos, o índice começa com uma sequência de A (por exemplo AAAAAxxx para as
-    140 sequências), um homopolímero que dificulta os alinhamentos. É uma característica do
-    esquema de Xie e vale para todas as condições.
-    Um índice errado faz a sequência contar como não recuperada, como na Condição A.
+4.7 O índice não é protegido pelo RS (em Organick o endereço também é um prefixo fora do código:
+    "appending a prefix with address information (block index and column index)").
+    Para arquivos pequenos, o índice começa com uma sequência de A: com 140 sequências, todos os
+    índices começam com 4 a 8 A's (AAAA em todos; 5 ou mais em 64 deles, os índices 0 a 63; o
+    índice 0 é AAAAAAAA). É um homopolímero que dificulta os alinhamentos, característica do
+    esquema de Xie, e vale para todas as condições.
+    Na Condição A, um índice errado faz a sequência contar como não recuperada (o bloco iria
+    para o lugar errado do arquivo). Na Condição B, a partir da versão 0.2.0, o índice decide a
+    coluna (4.10): um índice errado vira erasure, que o RS pode recuperar.
 
-4.8 Linha da matriz com erros demais: fica como veio, e a falha aparece na métrica.
+4.8 Linha da matriz com erros demais (2 x erros + erasures > paridade): fica como veio, e a falha
+    aparece na métrica. Se o bloco tem mais colunas vazias que moléculas de paridade, nenhuma
+    linha dele pode ser decodificada, e as colunas vazias saem zeradas.
 
 4.9 Reconstruções da Condição B (o usuário escolhe uma por execução, monografia 5.5):
     - BMA (4.5), a de referência.
     - Double-sided BMA: reconstrói a primeira metade (60 bases) da esquerda para a direita e a
       segunda metade (60 bases) da direita para a esquerda, com as leituras invertidas, e junta.
-      Fonte: Sharma et al. (2024) VII-B. O Toolkit corta em 59/61; seguimos o texto do artigo
-      ("left half" e "right half") e cortamos ao meio.
+      Fonte: Sharma et al. (2024) VII-B. O código do Toolkit roda a BMA inteira nos dois
+      sentidos e corta em 59/61; nós rodamos só cada metade e cortamos em 60/60, como diz o texto
+      do artigo ("left half" e "right half"). As duas formas são equivalentes: cada posição do
+      consenso só depende das anteriores e das próximas bases das leituras (o lookahead), não do
+      comprimento pedido; o teste test_half_length_bma_is_the_prefix_of_the_full_length_bma
+      confere isso.
+      Por que o nosso DBMA é mais barato: o DBMA precisa de 60 posições da esquerda para a
+      direita e de 60 da direita para a esquerda. O Toolkit calcula as 120 posições em cada
+      sentido (240 no total) e joga fora metade de cada uma; o nosso calcula só as 60 de cada
+      sentido (120 no total), metade do trabalho, com o mesmo resultado. Medido: o nosso DBMA
+      leva o mesmo tempo que o BMA (0,0024 contra 0,0025 s por molécula com 10 leituras); no
+      artigo, o DBMA do Toolkit leva quase o dobro do BMA (Sharma, Tabela III: 25 s contra 13 s
+      com cobertura 10; 329 s contra 167 s com 50).
     - NW-POA: alinhamento múltiplo por grafo de ordem parcial com Needleman-Wunsch global
       (biblioteca pyspoa, parâmetros padrão). Se o alinhamento passar de 120 colunas, saem as
       colunas com mais lacunas (Sharma: "omitting the x indexes with the most number of indels");
-      empate entre colunas: sai a mais à esquerda. Cada coluna restante vota só entre bases (a
-      lacuna não vota, como no Toolkit), com a mesma regra de empate de 3.3. Se o alinhamento
-      tiver menos de 120 colunas, completa-se com A (caso não descrito por Sharma; decisão nossa).
-      Fonte: Sharma et al. (2024) VII-C.
-    - Prévia (abstract, 1 semente): as três ficam próximas até ~12%; a 16% com 30 leituras o
-      NW-POA recupera bem menos que os BMA. Sharma relata o contrário em dados reais; a diferença
-      pode vir do canal uniforme (13). A análise final usa a grade completa.
+      empate entre colunas: sai a mais à esquerda. Cada coluna restante vota só entre bases, com a
+      mesma regra de empate de 3.3. Se o alinhamento tiver menos de 120 colunas, completa-se com
+      A (caso não descrito por Sharma; decisão nossa).
+      Fonte do método: Sharma et al. (2024) VII-C.
+      O que vem do código do Toolkit, e não do artigo (citar o repositório do Toolkit, não
+      Sharma et al.): a lacuna não vota; o poa é chamado com algorithm=1 (global) e os
+      parâmetros padrão; o descarte é pelas colunas com mais lacunas. Tudo igual ao nosso.
+      Diferença: no Toolkit o empate na votação depende da ordem de um set do Python, que muda a
+      cada execução (PYTHONHASHSEED); o nosso usa a regra de 3.3 e deu o mesmo resultado com 4
+      valores diferentes de PYTHONHASHSEED. Nosso NW-POA é determinístico; o do Toolkit, não.
+      Pontuação: Sharma diz que o NW "minimizes edit distance", mas os parâmetros padrão do spoa
+      não são custo unitário (acerto 5, troca -4, lacuna -8/-6). Testado: com custo unitário
+      (distância de edição de verdade) o NW-POA piora (16% com 30 leituras, 1:1:1, 3 sementes:
+      0,36 contra 0,65 com o padrão). O padrão foi mantido, e a diferença deve ser declarada.
+    - Resultado na grade completa: seção 15.7.
+
+
+4.10 Decodificação pelo endereço, como Organick (versão 0.2.0).
+     Organick: "In each recovered matrix some columns may be missing (erasures), and others may
+     contain errors. [...] we decode the outer Reed-Solomon (RS) code to correct errors and
+     erasures in rows of matrices M'". Passo a passo no código (RsHybridCorrector.correct):
+     1. Reconstrói cada grupo de leituras (BMA, DBMA ou NW-POA).
+     2. Lê o endereço (índice) de cada fita reconstruída.
+     3. Endereço único e dentro da faixa: a fita vai para aquela coluna da matriz.
+     4. Endereço fora da faixa: a fita é descartada.
+     5. Endereço repetido (duas ou mais fitas dizem ser a mesma coluna): todas são descartadas.
+        Organick não diz o que faz nesse caso; é decisão nossa, a conservadora (não há como saber
+        qual das fitas é a verdadeira).
+     6. Coluna que ficou sem fita é erasure: posição conhecida, valor perdido.
+     7. O RS decodifica cada linha com as posições dos erasures. Recupera a linha se
+        2 x erros + erasures <= moléculas de paridade (monografia 2.3).
+     8. A sequência devolvida para cada coluna leva o endereço da coluna e o payload corrigido.
+     Por que é mais fiel: antes (0.1.0) a molécula ia para o lugar certo pelo agrupamento
+     perfeito, e o índice errado só aparecia na métrica (15.4). Agora o decodificador usa o
+     endereço, como faria sem saber de onde veio cada leitura, e a capacidade de corrigir
+     erasures passa a ser usada.
+     Efeito medido num protótipo (BMA, 1:1:1, 3 sementes): 12% com 20 leituras, 16% com 30 e 18%
+     com 50, que paravam em 0,993 por falha de índice, passam a 1,000 nas três sementes; e um
+     caso piora (8% com 10 leituras, semente 0: 0,871 -> 0,850), porque endereços repetidos viram
+     erasures e somam aos erros da linha. Os números da grade completa estão na seção 15, depois
+     da nova rodada.
+     A Condição B também recusa arquivos que, com a paridade, passam de 65.536 moléculas: o
+     índice de 8 bases não tem endereço para elas (o app avisa; add_parity levanta erro).
 
 
 5. MÉTRICAS
@@ -337,6 +408,12 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 8.7 O ambiente registrado inclui o modelo do processador, núcleos físicos e lógicos, memória
     total e as versões de todas as bibliotecas usadas (monografia 4.6). As versões exatas também
     ficam travadas em requirements-lock.txt (monografia 5.7).
+8.8 Versão 0.2.0 (decodificação da Condição B igual a Organick, 4.2 e 4.10). O MAFFT não mudou,
+    então as execuções da Condição A de final_texto e final_imagem continuam valendo. As linhas da
+    Condição B foram apagadas desses CSVs e rodadas de novo; ablacao, reconstrucoes e a parte da
+    B de falhas foram refeitos. Os CSVs da grade final eram de antes da coluna "reconstruction";
+    a coluna foi acrescentada às linhas do MAFFT ("-") para o orquestrador aceitar a nova rodada.
+    O JSON de cada experimento registra a versão do pacote da última rodada.
 
 
 9. EXPERIMENTO PILOTO E GRADE FINAL
@@ -411,7 +488,7 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 10.7 Aba "Resultados": lê os CSVs dos experimentos e desenha a métrica escolhida contra a taxa de
      erro (cor = profundidade, estilo da linha = série), com a tabela das médias embaixo. Vários
      CSVs podem ser combinados (por exemplo, a grade final com a ablação) desde que usem o mesmo
-     arquivo de entrada (confere o SHA-256). Aba "Validação (Xie)": mostra a figura da validação.
+     arquivo de entrada (confere o SHA-256).
 10.8 Tempo e memória mostrados na interface são indicativos (o computador está dividido com o
      navegador); os valores da monografia vêm do modo experimental.
 10.9 A mesma combinação de parâmetros não roda duas vezes: o resultado fica guardado em cache.
@@ -420,40 +497,44 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
      faz parte do projeto) e a animação do Streamlit enquanto roda (o app já mostra
      "Simulando..."). O botão "Upload" é do próprio Streamlit e não tem tradução.
 10.11 A interface está em português; o código e o README, em inglês.
+10.12 O app tem só as abas Simular e Resultados. A aba "Validação (Xie)" saiu: a monografia (5.6)
+     pede só os gráficos das duas condições nos mesmos eixos, e a validação (Xie, 6.2) e a
+     comparação com Organick ficam na monografia e nos slides. Os diagnósticos (pilot,
+     validation_xie, falhas, mafft_120) não aparecem na aba Resultados.
+10.13 Publicação (planejado): Streamlit Community Cloud, a partir do repositório público. Exige
+     um packages.txt com "mafft" (pacote do sistema) e um requirements.txt que instale o
+     projeto; o arquivo principal é app/app.py. Alternativa: Hugging Face Spaces com Docker.
+     Num servidor gratuito e compartilhado, o MAFFT é lento (10.3); convém um limite de envio
+     menor na versão publicada.
 
 
-11. RESULTADO PRINCIPAL (primeira leitura; a análise completa está na seção 15)
----------------------------------------------------------------
+11. RESULTADO PRINCIPAL (versão 0.2.0; detalhes na seção 15)
+------------------------------------------------------------
 
-11.1 Na grade final do texto (432 combinações, 3 sementes), a Condição B recuperou tanto ou mais
-     que a A em todos os 144 pontos médios. Não há ponto de cruzamento na faixa estudada (2% a
-     30%): a B é superior a partir das menores taxas em que as duas diferem.
-11.2 Maior taxa com recuperação completa estrita (100% das 420 sequências), 1:1:1:
+11.1 Na grade final do texto (432 combinações, 3 sementes), a Condição B (BMA + RS 15%) recuperou
+     tanto ou mais que a A em todas as 432 execuções, comparadas uma a uma (mesmas leituras).
+     Não há ponto de cruzamento na faixa estudada (2% a 30%).
+11.2 Maior taxa com recuperação completa (100% em todas as sementes), 1:1:1:
      profundidade:    5     10    20    30    50    100
      MAFFT (A):       -     -     4%    4%    6%    6%
-     RS híbrido (B):  -     6%   10%   14%   14%   18%
+     RS híbrido (B):  2%    6%   12%   16%   18%   20%
      Em 1:1:2:
      MAFFT (A):       -     -     6%    6%    8%   10%
-     RS híbrido (B):  2%    6%   14%   18%   18%   20%
-     ("-": nem a menor taxa da grade, 2%, chega a 100%.) A B tolera de 2 a 3 vezes mais erro com a
-     mesma profundidade.
+     RS híbrido (B):  2%    8%   14%   18%   20%   25%
+     ("-": nem a menor taxa da grade, 2%, chega a 100%.) A B tolera de 2 a 4 vezes mais erro com
+     a mesma profundidade.
 11.3 Mesmo com menos leituras no total a B vence: a 12%, a B com 20 leituras (161 x 20 = 3.220
-     leituras) recupera 99,5% das sequências, contra 67% da A com 30 leituras (140 x 30 = 4.200).
-11.4 A densidade da A é maior: 1,87 contra 1,62 bits/nt (15% a mais). Mas a ablação (15.2)
-     mostra que o BMA sem RS, com a mesma densidade da A, também a supera; então a densidade não
-     é uma vantagem do MAFFT, e sim do "sem redundância lógica".
-11.5 A imagem (586 sequências) repete o padrão.
+     leituras) recupera 100% das sequências, contra 67% da A com 30 leituras (140 x 30 = 4.200).
+11.4 A densidade da A é maior: 1,87 contra 1,62 bits/nt (15% a mais). Mas o BMA sem RS, com a
+     mesma densidade da A, também a supera (15.2); então a densidade não é uma vantagem do
+     MAFFT, e sim do "sem redundância lógica".
+11.5 A imagem (586 sequências) repete o padrão (15.9).
 11.6 Cautelas obrigatórias na discussão: canal uniforme favorece a reconstrução (Sharma); o BMA
-     conhece o comprimento (120) e o consenso do MAFFT não; a B usa 15% mais moléculas e leituras.
-11.7 O que 11.1 ainda não responde: a vantagem da B vem do BMA ou do Reed-Solomon? Na prévia, o
-     BMA sozinho já supera o MAFFT, e o RS acrescenta pouco quando o BMA erra muito (cada
-     molécula mal reconstruída estraga muitos bytes da mesma linha). Para saber quando a
-     redundância lógica compensa, faz-se a ablação (seção 14).
-     Prévia (BMA, 1:1:1, 2 sementes): com 10 leituras, o RS muda a recuperação em no máximo 8
-     pontos (8%: 0,91 sem RS, 0,94 com 15%, 0,99 com 50%); com 30 leituras, só perto da borda
-     (18%: 0,84 sem RS, 0,85 com 15%, 0,99 com 50%). Longe da borda, nada: quando muitas moléculas
-     falham, cada linha da matriz passa da capacidade do código. No total, as falhas são quase
-     todas no payload; perto do limite, porém, as que sobram depois do RS são só de índice (15.4).
+     conhece o comprimento (120) e o consenso do MAFFT não (efeito medido em 15.2); a B usa 15%
+     mais moléculas e leituras.
+11.7 Histórico: na versão 0.1.0 (símbolos de 8 bits, molécula posta no lugar pelo agrupamento
+     perfeito) a B parava um degrau abaixo, segurada por falhas só de índice (15.4). A correção
+     para a decodificação de Organick (4.10) é o que leva aos números acima.
 
 
 12. AJUSTES NECESSÁRIOS NO TEXTO DA MONOGRAFIA
@@ -473,12 +554,15 @@ Conferidos contra o texto da monografia do PFC 1.
      1 sintetiza a comparação dessas quatro ferramentas" (é o Quadro 2).
 12.5 4.2 lista a proporção I:D:S entre o que "Mantêm-se controlados", mas a grade usa 1:1:1 e
      1:1:2: ela passa a ser variável independente.
-12.6 2.3 e 4.2 dizem que o RS corrige "as sequências integralmente perdidas" (erasures), mas a
-     simulação não perde moléculas (2.4): declarar que essa capacidade não é exercitada.
+12.6 2.3 e 4.2 dizem que o RS corrige "as sequências integralmente perdidas" (erasures). A
+     simulação não perde moléculas (2.4), mas, com a decodificação pelo endereço (4.10), os
+     erasures aparecem quando o endereço sai errado. Ajustar: erasures exercitados por erro de
+     endereço; perda física de moléculas fora do escopo.
 12.7 2.3: "A configuração adotada neste trabalho é definida no Capítulo 4", e o Capítulo 4 não a
-     define. Incluir: redundância de 15% (paridade/dados), símbolos de 1 byte, blocos de até 221
-     moléculas de dados + paridade, paridade no fim da lista, índice sem proteção, densidade 1,87
-     (A) contra 1,62 bits/nt (B).
+     define. Incluir: redundância de 15% (paridade/dados), símbolos de 16 bits (corpo de 65.536
+     elementos) e uma palavra-código por arquivo (até 65.535 símbolos), 14 linhas, paridade no
+     fim da lista, índice fora do RS, decodificação pelo endereço com erasures (4.10), densidade
+     1,87 (A) contra 1,62 bits/nt (B).
 12.8 4.3, último parágrafo: diz que o modelo "segue os mesmos parâmetros de taxa e proporção IDS
      reportados em estudos experimentais do corpus". Organick mediu 0,6% por posição, com
      predominância de substituições; a grade vai de 2% a 30%, com as proporções de Xie (que são de
@@ -493,6 +577,19 @@ Conferidos contra o texto da monografia do PFC 1.
 12.12 Imagem: o cabeçalho do PGM (15 bytes) fica na sequência 0. Se ela falhar, o arquivo
      recuperado não abre num visualizador comum; a interface mostra os pixels com as dimensões
      do original e avisa (10.2). Declarar.
+12.13 2.2 define a Hamming normalizada como diferenças / "comprimento da sequência". Com indels
+     o código alinha primeiro e divide pelo comprimento do alinhamento (5.2), para o valor
+     continuar entre 0 e 1. Ajustar a definição.
+12.14 5.1 diz que o ruído é gerado "uma única vez" e reutilizado. No código ele é gerado de novo
+     em cada condição a partir da mesma semente, com resultado idêntico (8.2); é o que permite
+     rodar cada condição num processo separado. Ajustar o texto.
+12.15 2.3 cita Sharma et al. para o NW "minimizar a distância de edição"; o que foi usado são os
+     parâmetros padrão do spoa, que não são custo unitário (4.9). Os detalhes que vêm do código
+     do Toolkit (lacuna não vota, algorithm=1, empate) devem citar o repositório, não o artigo.
+12.16 2.3 diz que o NW de Sharma "supera as duas anteriores em precisão"; aqui isso só vale com 5
+     a 10 leituras (15.7). Manter a cautela que a 2.3 já tem e citar o resultado.
+12.17 4.2: "O comportamento do Reed-Solomon aplicado isoladamente [...] constitui um caso
+     observável dentro desta condição" é a ablação (14 e 15.5); citar.
 
 
 13. LIMITAÇÕES A DECLARAR
@@ -500,16 +597,16 @@ Conferidos contra o texto da monografia do PFC 1.
 
 - Canal idealizado (erros uniformes). Sharma et al. (2024) mostram que reconstruir leituras
   simuladas assim é bem mais fácil do que reconstruir dados reais.
-- Sem perda de moléculas, então sem erasures (2.4).
-- O BMA conhece o comprimento da sequência (120); o consenso do MAFFT não.
+- Sem perda física de moléculas (2.4); os erasures vêm só de endereços errados (4.10).
+- O BMA conhece o comprimento da sequência (120); o consenso do MAFFT não. Fixar o comprimento
+  do MAFFT cobre só parte da diferença (15.2).
 - A Condição B usa 15% mais moléculas e leituras (4.4).
 - Assimetria C x Python na medida de tempo (5.5).
 - Sem embaralhamento nem restrições de codificação (1.1, 1.6).
 - Arquivo de validação diferente do de Xie (6.1).
 - Tempo medido inclui a partida do MAFFT (0,065 s por grupo na máquina dos experimentos) e seria
   inflado por execuções em paralelo; por isso as grades rodam uma por vez (8.4).
-- O índice não é protegido, e a métrica conta um índice errado como falha (4.7). Perto do limite,
-  é isso que segura a Condição B (15.4).
+- Endereços repetidos são todos descartados (4.10): regra nossa, porque Organick não a descreve.
 - Grade de profundidades com saltos de 2x (10 -> 20 -> 30 -> 50 -> 100): os limites e custos
   mínimos (15.3, 15.6) têm a resolução da grade.
 - 3 sementes por ponto (420 sequências). "100%" quer dizer 0 falhas em 420; não prova taxa de
@@ -533,122 +630,150 @@ Conferidos contra o texto da monografia do PFC 1.
      (results/reconstrucoes.csv), para separar o efeito do algoritmo de consenso do efeito do RS.
 
 
-15. ANÁLISE DOS RESULTADOS (ETAPA 11)
--------------------------------------
+15. ANÁLISE DOS RESULTADOS (ETAPA 11; versão 0.2.0)
+---------------------------------------------------
 
 15.1 Como foi feita. Tudo sai de um comando: python experiments/analyze.py. Ele junta
      results/final_texto.csv, results/ablacao.csv e results/reconstrucoes.csv (só aceita arquivos
      com o mesmo SHA-256 de entrada), dá um nome de série a cada execução ("MAFFT", "BMA (sem
      RS)", "BMA + RS 15%" etc.) e grava as tabelas e figuras em results/analise/. As funções
      ficam em src/dna_storage/analysis.py e têm testes.
-     Reprodutibilidade conferida: os 432 pontos "BMA + RS 15%" da ablação são idênticos, em taxa
-     de recuperação, Hamming e moléculas, aos da grade final, rodada dias antes; e os 1.728
-     pontos da Condição B rodados de novo em outro computador (o ambiente de nuvem, para o
-     diagnóstico 15.4) deram as mesmas taxas de recuperação. Mesma semente, mesmo resultado.
+     Reprodutibilidade conferida: os 432 pontos "BMA + RS 15%" da ablação são idênticos aos da
+     grade final, rodada separadamente (nas duas versões, 0.1.0 e 0.2.0); os valores do MAFFT no
+     diagnóstico mafft_120 são idênticos aos da grade final; e os pontos da Condição B rodados de
+     novo no ambiente de nuvem deram as mesmas taxas. Mesma semente, mesmo resultado.
      Por que script e não notebook: o script roda inteiro com um comando, é testado no CI e
      gera sempre as mesmas figuras; um notebook depende da ordem em que as células foram rodadas.
 
-15.2 De onde vem a vantagem da Condição B: da reconstrução, não do Reed-Solomon.
+15.2 De onde vem a vantagem da Condição B: da reconstrução, mais que do Reed-Solomon.
      Comparação pareada (mesmas leituras, mesma semente) contra o MAFFT, nas 432 execuções:
        série              melhor que A   igual   pior que A
-       BMA (sem RS)           299         133        0
-       BMA + RS 15%           299         133        0
+       BMA (sem RS)           298         134        0
+       BMA + RS 15%           298         134        0
        DBMA (sem RS)          304         128        0
-       NW-POA (sem RS)        239         121       72   (perde até 0,22)
+       DBMA + RS 15%          304         127        1   (perde 1 sequência: 1:1:2, 14%, 5 leituras)
+       NW-POA (sem RS)        230         122       80   (perde até 0,31)
+       NW-POA + RS 15%        251         151       30   (perde até 0,32)
      O BMA sem RS tem a mesma densidade da A (1,87 bits/nt) e as mesmas leituras, e nunca fica
-     abaixo dela. Logo, com este canal, a vantagem da Condição B já existe antes do RS: é o
-     consenso por ponteiros (BMA) que corrige mais que o alinhamento do MAFFT.
+     abaixo dela. Logo, com este canal, a maior parte da vantagem da Condição B já existe antes do
+     RS: é o consenso por ponteiros (BMA) que corrige mais que o alinhamento do MAFFT.
      Cautela obrigatória (13): o BMA sabe que a sequência tem 120 bases e o consenso do MAFFT não
      sabe; e o canal uniforme favorece a reconstrução (Sharma et al., 2024).
+     Quanto disso é o comprimento? O BMA produz exatamente 120 bases (um voto por posição); o
+     consenso do MAFFT tira toda coluna em que a lacuna vence, e pode sair com 119 ou 121 bases,
+     o que já conta como falha. O MAFFT não tem opção para fixar o comprimento do consenso (ele
+     só alinha), mas dá para fixá-lo depois, com a mesma regra do NW-POA: ficar com as 120
+     colunas com menos lacunas. O diagnóstico experiments/mafft_length.py faz isso sobre o mesmo
+     alinhamento (results/mafft_120.csv, grade completa, 432 execuções). Resultado: o
+     comprimento fixo melhora o MAFFT em média 0,026 (no máximo 0,126); nos 91 pontos em que o
+     BMA sem RS está mais de 0,01 acima do MAFFT, cobre 12% da distância somada (22% em média
+     por ponto); o limite de recuperação completa do MAFFT não muda; e só em 1 dos 144 pontos o
+     MAFFT com comprimento fixo passa do BMA. Ou seja, saber o comprimento explica uma parte
+     pequena da vantagem; o resto vem do método de consenso. A Condição A continua sem o
+     comprimento, porque é o procedimento de Xie, que não o fixa.
      Figura: results/analise/recuperacao_111.pdf (e _112).
 
 15.3 Maior taxa com recuperação completa (100% em todas as sementes), 1:1:1:
        profundidade         5     10    20    30    50    100
        MAFFT                -      -    4%    4%    6%    6%
        BMA (sem RS)         -     4%    8%   10%   12%   18%
-       BMA + RS 5% a 50%    -     6%   10%   14%   14%   18%
+       BMA + RS 5%          -     6%   10%   12%   16%   20%
+       BMA + RS 15%        2%     6%   12%   16%   18%   20%
+       BMA + RS 50%        4%     8%   14%   18%   20%   20%
        DBMA (sem RS)        -     2%    8%   10%   14%   18%
+       DBMA + RS 15%       2%     6%   14%   16%   18%   20%
        NW-POA (sem RS)      -     2%    4%    4%    2%    2%
-     Em 1:1:2 o padrão é o mesmo, até 4 pontos acima (tabela completa em
-     results/analise/limites.csv; figura limites_111.pdf e _112).
-     Leitura: o RS acrescenta um degrau (2 a 4 pontos de taxa) ao BMA, e esse degrau é o mesmo
-     com 5%, 15% ou 50% de redundância. A explicação está em 15.4.
+       NW-POA + RS 15%     4%     8%   12%   12%   10%    6%
+     Em 1:1:2 o padrão é o mesmo, até 5 pontos acima (results/analise/limites.csv; figuras
+     limites_111.pdf e _112).
+     Leitura: o RS acrescenta de 2 a 6 pontos de taxa ao BMA, e mais redundância sobe o limite
+     (5% < 15% < 50%), como se espera de um código corretor.
 
-15.4 Por que mais redundância não sobe o limite: o índice.
-     O diagnóstico experiments/failure_sites.py roda de novo as execuções e separa cada falha em
-     "só índice" (as 8 primeiras bases), "só payload" ou "ambos" (results/falhas.csv).
-     - No total, as falhas são quase todas no payload: o índice sozinho responde por 0,2% a 0,7%
-       delas.
-     - Mas perto do limite é o contrário. Nas execuções da Condição B com RS que recuperaram entre
-       98% e 100%, todas as falhas restantes eram só de índice: 4 de 4 com 5%, 22 de 22 com 15%,
-       33 de 33 com 50%. Sem RS (0%), nenhuma execução falhou só no índice.
-     - Ou seja: o RS corrige o payload, mas o índice não entra na palavra-código (4.7), e um
-       índice errado faz a sequência contar como falha. É o índice que segura o limite.
-     - Se o índice fosse corrigido (contando só o payload, results/analise/limites_so_payload.csv),
-       a redundância passaria a fazer diferença. 1:1:1:
-         profundidade        5     10    20    30    50    100
-         BMA (sem RS)        -     4%    8%   10%   12%   18%
-         BMA + RS 5%         -     6%   10%   14%   16%   20%
-         BMA + RS 15%       2%     6%   12%   16%   18%   20%
-         BMA + RS 50%       4%     8%   14%   18%   20%   20%
-     Em Organick et al. (2018) o endereço também é um prefixo fora do RS ("appending a prefix
-     with address information"), e o decodificador trata colunas que faltam: "some columns may
-     be missing (erasures)". Inferência nossa: lá, um endereço errado deixaria a coluna
-     verdadeira faltando, e o RS a corrigiria como erasure. Aqui o agrupamento é perfeito (2.5),
-     a molécula fica no lugar certo e o erro do índice só aparece na métrica. Num decodificador
-     como o de Organick, a Condição B provavelmente ficaria perto dos limites "só payload".
-     Recomendação de projeto: proteger o índice (dentro do RS ou com um código próprio). Sem
-     isso, aumentar a redundância não melhora a recuperação completa.
+15.4 O índice: o que mudou da versão 0.1.0 para a 0.2.0.
+     - Na 0.1.0, a molécula ia para o lugar certo pelo agrupamento perfeito e o índice errado
+       contava como falha. O diagnóstico experiments/failure_sites.py (separa cada falha em "só
+       índice", "só payload" ou "ambos") mostrou que, perto do limite, todas as falhas que sobravam
+       na Condição B eram só de índice (22 de 22 execuções com RS 15%; 33 de 33 com 50%). Por isso
+       5%, 15% e 50% davam o mesmo limite. Isso revelou que o decodificador não fazia o que
+       Organick faz.
+     - Na 0.2.0 a molécula vai para a coluna que o seu índice indica, e o índice errado vira
+       erasure (4.10). Resultado: nenhuma falha de índice na Condição B (o índice devolvido é o da
+       coluna), e os limites passam a subir com a redundância (15.3). Os novos limites ficam
+       praticamente iguais aos que a 0.1.0 teria se contasse só o payload (iguais com RS 15% e 50%;
+       com RS 5%, um valor diferente em cada proporção), o que confirma a explicação.
+     - Efeito colateral, real e esperado: mais moléculas (as de paridade) podem ler o endereço
+       errado e cair numa coluna ocupada; aí as duas são descartadas (4.10). Em erro alto e
+       poucas leituras isso às vezes custa uma molécula que o BMA sem RS acertaria: o RS perde
+       para o BMA sem RS em 4 a 8 dos 144 pontos, sempre por 1 ou 2 sequências. Conferido em
+       três desses casos: são moléculas de paridade (140, 141, 154) cujo endereço reconstruído
+       colidiu com o de uma molécula de dados certa.
+     - No MAFFT nada muda: só 0,3% a 0,5% das falhas são só de índice, e nenhuma execução falhou
+       só no índice (results/analise/falhas_resumo.csv).
 
 15.5 Quanto o RS acrescenta (ganho médio na taxa de recuperação contra o BMA sem RS, 144 pontos):
-       redundância   densidade   ganho médio   maior ganho   pontos com ganho
-          5%           1,78        0,001         0,03              25
-         10%           1,70        0,003         0,04              39
-         15%           1,62        0,005         0,06              46
-         25%           1,49        0,009         0,10              49
-         50%           1,24        0,016         0,19              58
-     O RS nunca piora a recuperação (nenhum ponto com perda). O ganho só aparece numa faixa
-     estreita perto da borda de cada profundidade (figura ganho_rs_111.pdf): abaixo dela o BMA já
-     acerta tudo; acima, erram tantas moléculas que cada linha da matriz passa da capacidade.
-     15% custa 13% da densidade para um ganho médio de meio ponto percentual.
+       redundância   densidade   ganho médio   maior ganho   pontos com ganho   com perda
+          5%           1,78        0,002         0,04              26               4
+         10%           1,70        0,004         0,05              39               6
+         15%           1,62        0,006         0,06              44               5
+         25%           1,49        0,009         0,10              49               8
+         50%           1,24        0,018         0,20              56               4
+     O ganho médio é pequeno porque só aparece numa faixa estreita perto da borda de cada
+     profundidade (figura ganho_rs_111.pdf): abaixo dela o BMA já acerta tudo; acima, erram
+     tantas moléculas que cada linha passa da capacidade. Mas é justamente essa faixa que decide
+     o limite de recuperação completa (15.3). As perdas são de 1 ou 2 sequências (15.4).
 
 15.6 Custo de leitura e o cruzamento da pergunta 1.2.
      Custo de leitura = nucleotídeos sequenciados por bit do arquivo = profundidade /
      densidade. Para cada taxa, a menor profundidade da grade com recuperação completa
      (results/analise/custo_minimo.csv; figura custo_leitura.pdf). 1:1:1:
-       taxa                  2%    4%    6%    8%   10%   12%   14%   16%   18%
-       MAFFT                10,7  10,7  26,8    -     -     -     -     -     -
-       BMA (sem RS)          5,4   5,4  10,7  10,7  16,1  26,8  53,6  53,6  53,6
-       BMA + RS 15%          6,2   6,2   6,2  12,3  12,3  18,5  18,5  61,6  61,6
+       taxa                  2%    4%    6%    8%   10%   12%   14%   16%   18%   20%
+       MAFFT                10,7  10,7  26,8    -     -     -     -     -     -     -
+       BMA (sem RS)          5,4   5,4  10,7  10,7  16,1  26,8  53,6  53,6  53,6    -
+       BMA + RS 15%          3,1   6,2   6,2  12,3  12,3  12,3  18,5  18,5  30,8  61,6
+       DBMA + RS 15%         3,1   6,2   6,2  12,3  12,3  12,3  12,3  18,5  30,8  61,6
      - O MAFFT é sempre o mais caro onde chega a 100%, e a partir de 8% não chega.
-     - Entre BMA sem RS e BMA com RS o mais barato se alterna: a 2-4% e a 8% o RS só encarece
-       (15% a mais de moléculas lidas); a 6% e de 10% a 14% ele permite usar menos leituras e fica
-       mais barato; em 16-18% os dois precisam de 100 leituras e o RS volta a ser mais caro.
+     - Entre BMA sem RS e BMA com RS o mais barato se alterna: a 4% e a 8% o RS só encarece (15%
+       a mais de moléculas lidas, com a mesma profundidade); nas outras taxas ele permite usar
+       menos leituras (a 2%, 5 em vez de 10; de 10% a 18%, de 2 a 3 vezes menos) e fica mais
+       barato. A 20%, só o RS chega a 100%.
      - Isso responde à pergunta 1.2 de um jeito mais preciso que "quem recupera mais": a
-       redundância lógica compensa em parte da faixa intermediária de erro, não sempre.
-     - Resolução: as profundidades sobem em saltos (10 -> 20 -> 30 -> 50 -> 100), então os
+       redundância lógica compensa na maior parte da faixa, mas não em toda.
+     - Resolução: as profundidades sobem em saltos (5 -> 10 -> 20 -> 30 -> 50 -> 100), então os
        custos são aproximados por cima.
      - Custo de síntese (nucleotídeos sintetizados por bit = 1 / densidade): A e BMA sem RS
        empatam (0,54); com RS 15%, 0,62.
 
-15.7 Reconstruções (sem RS; figura reconstrucoes_111.pdf):
-     - DBMA supera o BMA em 67 dos 144 pontos, empata em 69 e perde em 8 (por no máximo 0,014).
-       A diferença cresce com o erro (20% com 30 leituras: 0,78 contra 0,61), como Sharma et al.
-       (2024) descrevem: o erro se propaga só até o meio. No limite de recuperação completa, o BMA
-       é melhor com 10 leituras (4% contra 2%) e o DBMA com 50 (14% contra 12%).
-     - NW-POA é o melhor com poucas leituras (8% com 5 leituras: 0,57 contra 0,31 do BMA), mas
-       piora quando as leituras aumentam (12%: 0,92 com 30, 0,80 com 100). É a única série que
-       perde para o MAFFT (72 de 432 execuções: 2 com 20 leituras, 5 com 30, 24 com 50, 41 com
-       100).
-     - Diagnóstico (1 semente, 12% com 100 leituras): 18 das 31 falhas começam nas 12 primeiras
-       bases, onde o índice tem uma sequência de A (4.7). Com muitas leituras, o alinhamento por
-       grafo divide uma coluna verdadeira em duas; a regra de Sharma (tirar as colunas com mais
-       lacunas) às vezes tira a errada. Tirar a coluna onde a lacuna vence (como na Condição A)
-       foi testado e foi pior. Mantivemos o método como Sharma descreve e declaramos o
-       comportamento.
-     - Sharma (Fig. 6) diz que o Needleman-Wunsch "outperforms prior work"; aqui isso vale só
-       com 5 a 10 leituras. A diferença pode vir do canal uniforme ou da implementação
-       (pyspoa com parâmetros padrão); não dá para separar com os dados que temos.
+15.7 Reconstruções (figura reconstrucoes_111.pdf; definições em 4.9).
+     - Quem vence depende da profundidade. Pontos em que cada reconstrução é a melhor das três
+       (1:1:1, sem RS, 12 taxas por profundidade):
+         leituras      5    10    20    30    50   100
+         NW-POA        8     7     0     0     0     0
+         DBMA          0     2     7     6     6     2
+         BMA           0     1     1     0     0     1
+       (o resto são empates). Com RS 15% e em 1:1:2 o padrão é o mesmo.
+     - DBMA contra BMA: melhor em 67 dos 144 pontos, empate em 69, pior em 8 (no máximo 0,01). A
+       diferença cresce com o erro (20% com 30 leituras: 0,77 contra 0,60), como Sharma et al.
+       (2024) descrevem: o erro se propaga só até o meio.
+     - NW-POA: o melhor com 5 e 10 leituras (8% com 5 leituras: 0,55 contra 0,31 do BMA), nunca o
+       melhor com 20 ou mais, e piora quando as leituras aumentam (12%: 0,90 com 30, 0,75 com
+       100). Com RS 15% ele tem os maiores limites com 5 e 10 leituras (4% e 8%, contra 2% e 6% do
+       BMA). É a única reconstrução que perde para o MAFFT: sem RS em 80 de 432 execuções (2 com
+       20 leituras, 6 com 30, 28 com 50, 44 com 100); com RS 15% em 30 (6 com 50, 24 com 100).
+     - Por que piora: o índice (4 a 8 A's, 4.7) explica só uma parte. A 16% com 30 leituras
+       (1:1:1, 3 sementes), o NW-POA erra o índice em 9,5% das moléculas (BMA: 0,5%), mas também
+       erra o payload em 32,6% (BMA: 6,0%). O alinhamento por grafo, com muitas leituras, divide
+       colunas verdadeiras, e a regra de tirar as colunas com mais lacunas às vezes tira a
+       errada; tirar a coluna onde a lacuna vence (como na Condição A) foi testado e foi pior.
+       A pontuação também não explica (custo unitário é pior, 4.9). Mantivemos o método como
+       descrito e declaramos o comportamento.
+     - Comparação com Sharma: o artigo diz que o NW "is much more accurate than prior work"
+       (Fig. 6) e mais rápido. A velocidade se confirma aqui (NW-POA, em C++, leva 0,0006 s por
+       molécula com 5 leituras contra 0,0018 s do BMA em Python). A precisão só se confirma com
+       5 a 10 leituras. O artigo não diz em que dados nem com quantas leituras a Fig. 6 foi
+       feita; o único conjunto real descrito tem cerca de 27 leituras por grupo (270 mil leituras
+       em 10 mil grupos). Então não dá para dizer que o resultado de Sharma vem de pouca
+       profundidade: a diferença pode vir do canal uniforme, da implementação ou da profundidade,
+       e os dados do corpus não permitem separar.
 
 15.8 Incerteza.
      - Cada ponto tem 3 sementes x 140 sequências = 420 sequências. A tabela pontos.csv traz
@@ -660,30 +785,67 @@ Conferidos contra o texto da monografia do PFC 1.
      - As comparações A x B são pareadas (mesmas leituras), o que tira o efeito do sorteio:
        "B nunca abaixo de A em 432 execuções" é um resultado forte mesmo com 3 sementes.
 
-15.9 Imagem (586 sequências; results/analise/imagem_texto.csv).
+15.9 Imagem (586 sequências, uma palavra-código de 674 símbolos; results/analise/imagem_texto.csv).
      - Em todos os 15 pontos em comum, a B recupera tanto ou mais que a A, como no texto.
-     - Com erro alto, a imagem recupera menos que o texto (16% com 30 leituras, B: 0,83 contra
-       0,99). Hipótese nossa: a imagem tem homopolímeros longos (fundo uniforme vira CCCC...;
-       20,6% das sequências com sequência repetida de 6 ou mais bases, contra 11,4% no texto;
-       a maior tem 36). Homopolímeros longos são um problema conhecido: Organick et al. (2018)
-       usam um código rotativo justamente para eliminá-los; este trabalho não usa (1.6).
+     - Com erro alto, a imagem recupera menos que o texto (16% com 30 leituras, B: 0,82 contra
+       1,00; 20% com 50: 0,69 contra 0,94). Hipótese nossa: a imagem tem homopolímeros longos
+       (fundo uniforme vira CCCC...; 20,6% das sequências com sequência repetida de 6 ou mais
+       bases, contra 11,4% no texto; a maior tem 36). Xie et al. (2023) observam que
+       homopolímeros dificultam o alinhamento e que limitar o seu comprimento reduziria os erros
+       que sobram (monografia 2.1); Organick et al. (2018) usam um código rotativo justamente
+       para eliminá-los. Este trabalho não restringe a codificação (1.1).
 
 15.10 Tempo e memória (secundários, monografia 4.4; tabela tempo_memoria.csv, figura tempo.pdf).
-     - Por sequência: MAFFT 0,075 s (5 leituras) a 0,139 s (100); BMA + RS 15% 0,0023 s a
-       0,0154 s. A Condição B é 9 a 33 vezes mais rápida.
-     - Memória: MAFFT ~27 MiB (o programa aberto a cada grupo); B ~0,45 MiB.
+     - Por sequência: MAFFT 0,075 s (5 leituras) a 0,139 s (100); BMA + RS 15% 0,0021 s a
+       0,0143 s. A Condição B é 10 a 36 vezes mais rápida.
+     - Memória: MAFFT ~27 MiB (o programa aberto a cada grupo); B 0,3 a 0,5 MiB.
      - O tempo do MAFFT quase não depende das leituras (domina a partida, 5.5); o da B cresce
-       linear com as leituras.
+       linear com as leituras. Os símbolos de 16 bits não deixaram a B mais lenta.
 
-15.11 Recomendações de projeto (objetivo 8 da proposta), para este canal (uniforme, sem perda de
+15.11 Melhor configuração da Condição B (results/analise/pontos.csv, limites.csv, custo_minimo.csv).
+     - Média da taxa de recuperação nos 144 pontos da grade:
+         DBMA + RS 15%     0,728        BMA + RS 15%      0,701
+         DBMA (sem RS)     0,722        BMA (sem RS)      0,695
+         BMA + RS 50%      0,712        NW-POA + RS 15%   0,589
+         BMA + RS 25%      0,704        NW-POA (sem RS)   0,575
+                                         MAFFT             0,482
+     - Com 5 a 10 leituras, o NW-POA + RS 15% é o melhor (média 0,45 contra 0,42 do DBMA + RS
+       15%; limites de 4% e 8% contra 2% e 6%); com 20 ou mais, o DBMA + RS 15% (média 0,88).
+     - Entre as configurações com 15% de redundância, o DBMA + RS 15% tem o maior limite de
+       recuperação completa (ou empata com o maior) em toda profundidade a partir de 20 leituras e o menor custo de
+       leitura em todas as taxas (15.6). Mais redundância (50%) sobe o limite, ao custo de 23% da
+       densidade.
+     - Resposta: no geral, DBMA + RS 15%; com poucas leituras, NW-POA + RS 15%. O BMA, que é a
+       referência por ser o de Organick (monografia 4.2), fica logo abaixo do DBMA.
+
+15.12 Resposta à pergunta de pesquisa (monografia 1.2).
+     "A partir de qual taxa de erro a capacidade de recuperação do RS passa a superar a do MAFFT,
+     ou vice-versa, sob profundidade comparável?"
+     - Em recuperação, não há cruzamento na faixa estudada (2% a 30%). Com a mesma profundidade
+       (mesmo número de leituras por molécula, monografia 4.2), o RS híbrido com BMA recupera
+       tanto ou mais que o MAFFT em todas as 432 execuções (com DBMA, em 431; a exceção perde
+       uma sequência). Ele passa a ser melhor desde a primeira taxa em que os dois não chegam
+       juntos a 100%: 2% com 5 e 10 leituras, 6% com 20 e 30, 8% com 50 e 100 (1:1:1; em 1:1:2,
+       2%, 2%, 8%, 8%, 10% e 12%). Abaixo disso os dois chegam a 100% e empatam.
+     - A vantagem tem duas partes: a reconstrução (BMA/DBMA supera o alinhamento do MAFFT com as
+       mesmas leituras e a mesma densidade, 15.2) e o RS (2 a 6 pontos de taxa a mais no limite,
+       crescendo com a redundância, 15.3).
+     - Há "vice-versa" em dois sentidos: (a) com a reconstrução NW-POA e 20 ou mais leituras, o
+       MAFFT supera o RS híbrido em parte da faixa (15.7); (b) em densidade, o MAFFT é melhor
+       (1,87 contra 1,62 bits/nt), mas o BMA sem RS tem a mesma densidade e recupera mais.
+     - Em custo de leitura (15.6), o MAFFT nunca é o mais barato; o cruzamento que existe é entre
+       usar ou não o RS sobre a reconstrução.
+     - Condições: canal uniforme, agrupamento perfeito, sem perda física de moléculas (13).
+
+15.13 Recomendações de projeto (objetivo 8 da proposta), para este canal (uniforme, sem perda de
      moléculas):
-     - Use reconstrução por consenso com comprimento conhecido (BMA ou DBMA) em vez de alinhamento
+     - Use reconstrução por consenso com comprimento conhecido (DBMA ou BMA) em vez de alinhamento
        múltiplo genérico (MAFFT): recupera mais com as mesmas leituras e custa menos tempo.
-     - Com poucas leituras (5 a 10), considere o NW-POA; com 20 ou mais, BMA ou DBMA.
-     - Proteja o índice. Sem isso, a redundância do RS para de render perto do limite (15.4).
-     - Redundância lógica: vale a pena na faixa intermediária de erro (aqui, sobretudo de 10% a
-       14%); com erro baixo, ela só aumenta o custo; com erro muito alto, não basta.
-     - Ressalva principal: o RS foi feito para moléculas perdidas (erasures), que este simulador
-       não produz (2.4). Num sistema real, com perda de moléculas, o BMA sem RS não recupera o que
-       se perdeu e o RS volta a ser necessário. Isso é trabalho futuro.
-
+     - Com poucas leituras (5 a 10), considere o NW-POA; com 20 ou mais, DBMA.
+     - Decodifique pelo endereço, com erasures, como Organick (4.10): sem isso, o índice segura o
+       limite e a redundância para de render (15.4).
+     - Redundância lógica: vale a pena na maior parte da faixa de erro estudada (15.6); com erro
+       muito baixo pode só aumentar o custo; com erro muito alto, não basta.
+     - Ressalva principal: o RS foi feito sobretudo para moléculas perdidas (erasures), e este
+       simulador não perde moléculas (2.4). Num sistema real, com perda de moléculas, o BMA sem RS
+       não recupera o que se perdeu e o RS fica ainda mais necessário. Isso é trabalho futuro.
