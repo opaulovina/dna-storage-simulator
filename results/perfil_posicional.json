@@ -1,0 +1,22 @@
+{
+  "file": "abstract_3920.txt",
+  "sha256": "6ab413100b002199f271f116b303d8a5eb76fd405c55adeb0d14c5f0a48b711d",
+  "bytes": 3920,
+  "sequences": 140,
+  "mafft": "v7.505 (2022/Apr/10)",
+  "python": "3.12.3",
+  "packages": {
+    "dna-storage-simulator": "0.2.0",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "matplotlib": "3.11.2",
+    "psutil": "7.2.2",
+    "reedsolo": "1.7.0",
+    "pyspoa": "0.3.2"
+  },
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.39",
+  "processor": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+  "physical_cores": 4,
+  "logical_cores": 8,
+  "memory_gib": 15.3
+}

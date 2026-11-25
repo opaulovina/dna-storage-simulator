@@ -162,3 +162,11 @@ def test_every_reconstruction_recovers_moderate_noise(reconstruction):
 def test_unknown_reconstruction_is_rejected():
     with pytest.raises(ValueError, match="desconhecida"):
         RsHybridCorrector(140, reconstruction="Trellis")
+
+
+def test_a_molecule_without_reads_becomes_an_erasure_and_is_recovered():
+    clusters = [[sequence] for sequence in add_parity(SEQUENCES)]
+    clusters[0] = []
+    corrector = RsHybridCorrector(140)
+    assert 0 not in corrector.receive(clusters)
+    assert corrector.correct(clusters) == SEQUENCES

@@ -211,7 +211,7 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
      Organick: "In each recovered matrix some columns may be missing (erasures), and others may
      contain errors. [...] we decode the outer Reed-Solomon (RS) code to correct errors and
      erasures in rows of matrices M'". Passo a passo no código (RsHybridCorrector.correct):
-     1. Reconstrói cada grupo de leituras (BMA, DBMA ou NW-POA).
+     1. Reconstrói cada grupo de leituras (BMA, DBMA ou NW-POA). Grupo sem leitura não gera fita.
      2. Lê o endereço (índice) de cada fita reconstruída.
      3. Endereço único e dentro da faixa: a fita vai para aquela coluna da matriz.
      4. Endereço fora da faixa: a fita é descartada.
@@ -500,7 +500,8 @@ Cada decisão tem: o que foi decidido, por quê, de onde vem, e onde entra na mo
 10.12 O app tem só as abas Simular e Resultados. A aba "Validação (Xie)" saiu: a monografia (5.6)
      pede só os gráficos das duas condições nos mesmos eixos, e a validação (Xie, 6.2) e a
      comparação com Organick ficam na monografia e nos slides. Os diagnósticos (pilot,
-     validation_xie, falhas, mafft_120) não aparecem na aba Resultados.
+     validation_xie, falhas, mafft_120, organick_cobertura, organick_fronteira,
+     perfil_posicional) não aparecem na aba Resultados.
 10.13 Publicação (planejado): Streamlit Community Cloud, a partir do repositório público. Exige
      um packages.txt com "mafft" (pacote do sistema) e um requirements.txt que instale o
      projeto; o arquivo principal é app/app.py. Alternativa: Hugging Face Spaces com Docker.
@@ -812,9 +813,9 @@ Conferidos contra o texto da monografia do PFC 1.
      - Com 5 a 10 leituras, o NW-POA + RS 15% é o melhor (média 0,45 contra 0,42 do DBMA + RS
        15%; limites de 4% e 8% contra 2% e 6%); com 20 ou mais, o DBMA + RS 15% (média 0,88).
      - Entre as configurações com 15% de redundância, o DBMA + RS 15% tem o maior limite de
-       recuperação completa (ou empata com o maior) em toda profundidade a partir de 20 leituras e o menor custo de
-       leitura em todas as taxas (15.6). Mais redundância (50%) sobe o limite, ao custo de 23% da
-       densidade.
+       recuperação completa (ou empata com o maior) em toda profundidade a partir de 20 leituras
+       e o menor custo de leitura em todas as taxas (15.6). Mais redundância (50%) sobe o limite,
+       ao custo de 23% da densidade.
      - Resposta: no geral, DBMA + RS 15%; com poucas leituras, NW-POA + RS 15%. O BMA, que é a
        referência por ser o de Organick (monografia 4.2), fica logo abaixo do DBMA.
 
@@ -849,3 +850,103 @@ Conferidos contra o texto da monografia do PFC 1.
      - Ressalva principal: o RS foi feito sobretudo para moléculas perdidas (erasures), e este
        simulador não perde moléculas (2.4). Num sistema real, com perda de moléculas, o BMA sem RS
        não recupera o que se perdeu e o RS fica ainda mais necessário. Isso é trabalho futuro.
+
+16. VALIDAÇÃO DA CONDIÇÃO B (ORGANICK ET AL., 2018; SHARMA ET AL., 2024)
+-------------------------------------------------------------------------
+
+16.1 Por quê. A Condição A tem validação quantitativa contra Xie (seção 6); a B não tinha. Dois
+     scripts fazem isso sem mudar o simulador: experiments/validate_organick.py e
+     experiments/positional_errors.py. As funções ficam em src/dna_storage/validation.py, com
+     testes. Para medir o que entra no RS, o decodificador foi separado em duas partes:
+     receive (reconstrói e põe cada fita na coluna do seu endereço) e decode (o RS). O resultado
+     não muda (conferido com execuções sorteadas da ablação). Um grupo sem leitura nenhuma agora
+     não gera fita, e a coluna dele vira erasure; antes viraria AAAA... (endereço 0) e colidiria
+     com a molécula 0. Nos experimentos isso nunca acontece, porque a profundidade é pelo menos 1.
+
+16.2 Regime de erro de Organick e cobertura mínima.
+     - Canal: 0,64% por base, I:D:S 1:5:10. Organick (Fig. 3b): "Substitutions were the most
+       prominent type (0.4%), twice as likely as deletions (0.2%) and ten times as common as
+       insertions (0.04%)". BMA + RS 15%, arquivo do abstract, coberturas 1, 2, 3, 4, 5, 6, 8, 10,
+       12 e 14 leituras, 10 sementes.
+     - Medida: a "used error resilience" de Organick: a decodificação dá certo se, em cada linha,
+       (2 x erros + erasures) / coordenadas de paridade <= 1. Erros e erasures são contados
+       comparando cada coluna recebida com a original (o simulador conhece a original). Por
+       execução, guarda-se a pior linha (o máximo), porque basta uma linha acima de 1 para
+       falhar. Organick desenha uma curva por arquivo (Fig. 3e) sem dizer como junta as linhas;
+       usar a pior é inferência nossa, coerente com a regra deles.
+     - Dois modos de cobertura:
+       fixa: o canal dos experimentos (toda molécula recebe exatamente N leituras);
+       Poisson: cada molécula recebe um número sorteado de leituras, com média N, e algumas ficam
+       sem leitura nenhuma (erasure). É mais parecido com o que Organick fez ("We randomly
+       subsampled the usable sequencing reads"). O modelo é o de Kas Hanna (2025): número de
+       leituras de cada fita Rj ~ Pois(lambda x pj), ligado à amostragem com reposição
+       (multinomial) pela "Poissonization". Usamos o caso uniforme (pj = 1/N, média N por
+       molécula), que o próprio Kas Hanna aponta como simplificação comum que "generally do[es]
+       not reflect practical realities". A cobertura real de Organick varia ainda mais
+       (distribuição gama, Fig. 3a), então o modo Poisson continua otimista.
+     - Resultado (results/analise/organick_cobertura.csv; figura organick_cobertura.pdf):
+         leituras                  1     2     3     4     5     6     8    10    12    14
+         fixa: sementes com 100%   0     0    10    10    10    10    10    10    10    10
+         fixa: pior linha (média) 4,28  4,29  0,31  0,12  0     0     0     0     0     0
+         Poisson: sementes c/100%  0     0     0     2     9    10    10    10    10    10
+         Poisson: pior linha      5,21  3,30  2,09  1,32  0,62  0,42  0,04  0,02  0     0
+         Poisson: sem leitura     52,3  21,0  6,5   2,5   0,7   0,2   0,1   0     0     0
+       (pior linha = média, entre as 10 sementes, da maior used error resilience; "sem leitura" =
+       moléculas sem nenhuma leitura, média de 161.)
+     - Leitura:
+       Recuperação completa aconteceu exatamente quando a pior linha ficou <= 1, em 200 de 200
+       execuções: é a regra de Organick, funcionando no nosso decodificador.
+       A curva cai com a cobertura, como na Fig. 3e ("the ratio decreased with coverage because
+       the total number of errors and erasures decreases with extra read information").
+       Com Poisson, 100% em todas as sementes a partir de 6 leituras (5 leituras: 9 de 10).
+       Organick: "median coverage of only 5 reads per DNA sequence, with different files ranging
+       from 4 to 14". Nosso valor cai no começo dessa faixa, o que é esperado: canal uniforme,
+       agrupamento perfeito, nenhuma leitura inutilizável (Organick descarta 6,5%) e cobertura
+       menos dispersa que a real.
+       Com cobertura fixa bastam 3 leituras. Com 1 leitura, a fita só vem certa se a leitura
+       vier sem erro, (1 - 0,0064)^120 = 46% (cálculo nosso; medido: 46%); com 2, sempre que as
+       duas discordam o voto empata, e não há ganho (45,6%). Com 3 já existe maioria.
+     - O que isto é e o que não é: não reproduz os números de Organick (dados reais, código
+       rotativo, agrupamento real); mostra que a nossa Condição B se comporta como a deles no
+       regime de erro deles, usa a mesma regra de decodificação e chega à mesma ordem de
+       cobertura mínima.
+
+16.3 Fronteira do decodificador em GF(2^16).
+     - Teste direto do decodificador (reedsolo, a mesma palavra do abstract: 161 símbolos, 21 de
+       paridade), com 0 a 11 erros e 0 a 22 erasures em posições e valores sorteados, 20
+       tentativas por combinação, semente 0 (results/organick_fronteira.csv; figura
+       organick_fronteira.pdf).
+     - 2 x erros + erasures <= 21: 132 combinações, 2.640 tentativas, todas corretas.
+     - Acima disso: 144 combinações, 2.880 tentativas, nenhuma correta; em 2.659 o decodificador
+       avisa a falha, e em 221 devolve uma mensagem errada sem avisar.
+     - 220 das 221 erradas têm exatamente 21 erasures e algum erro: os erasures gastam toda a
+       paridade, não sobra nada para detectar o erro, e o decodificador devolve uma palavra
+       válida, mas errada. A outra (5 erros + 19 erasures) é uma correção errada rara.
+     - Consequência: numa linha exatamente sem folga, o RS pode trocar símbolos certos por errados
+       sem avisar. Não é defeito da biblioteca: num código MDS, quaisquer k símbolos determinam a
+       palavra-código (monografia 2.3); com 21 erasures sobram exatamente k símbolos, e um erro
+       entre eles leva a outra palavra válida, sem nada que o denuncie. Declarar.
+
+16.4 Erro por posição da fita (Sharma).
+     - Sem RS, 1:1:1, 10 sementes, taxas 12% e 16%, 10 e 20 leituras, BMA, DBMA e NW-POA. Conta,
+       para cada uma das 120 posições, a fração de fitas reconstruídas com a base errada naquela
+       posição, a mesma medida de Sharma (Fig. 3: "the proportion of bases wrongly reconstructed
+       from the noisy reads for the specified index"). Resultado em
+       results/analise/perfil_posicional.csv; figura perfil_posicional.pdf.
+     - Média por faixa de posições (16%, 10 leituras):
+         posições       0-19   20-39  40-59  60-79  80-99  100-119
+         BMA            0,08   0,20   0,29   0,40   0,47   0,51
+         DBMA           0,08   0,20   0,29   0,25   0,15   0,05
+         NW-POA         0,11   0,22   0,26   0,25   0,19   0,08
+     - BMA: o erro cresce do começo ao fim, como Sharma descreve: "the longer the strand, the
+       more unreliable the reconstruction of later indexes becomes".
+     - DBMA: igual ao BMA na primeira metade (é o mesmo cálculo, 4.9), pico perto do meio
+       (posições 56 a 61 nos quatro casos) e queda até a ponta. Sharma (Fig. 6): "Double Sided
+       algorithms reduce the peak error rate and concentrates errors in the middle indexes".
+     - NW-POA: perfil em arco, mais baixo nas pontas. Com 20 leituras ele erra mais que o DBMA
+       em todas as faixas (12%: média 0,016 contra 0,003), coerente com 15.7.
+     - As duas observações de Sharma se confirmam no nosso simulador.
+
+16.5 Na monografia (6.2): tabela de 16.2 e figura organick_cobertura (6.2.2); figura
+     organick_fronteira (6.2.1); figura perfil_posicional e tabela de 16.4 (6.2.3). Tudo no corpus:
+     Poisson vem de Kas Hanna (2025); a fronteira, da propriedade MDS já descrita na 2.3.

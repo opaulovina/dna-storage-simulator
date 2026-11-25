@@ -27,7 +27,15 @@ TEXT_SUFFIXES = {
     ".txt", ".csv", ".tsv", ".md", ".json", ".xml", ".html", ".htm", ".fasta", ".fa", ".fastq",
     ".fq", ".py", ".log", ".yaml", ".yml", ".toml", ".ini",
 }
-DIAGNOSTICS = {"pilot", "validation_xie", "falhas", "mafft_120"}
+DIAGNOSTICS = {
+    "pilot",
+    "validation_xie",
+    "falhas",
+    "mafft_120",
+    "organick_cobertura",
+    "organick_fronteira",
+    "perfil_posicional",
+}
 TEXT_PREVIEW = 3000
 MAP_LIMIT = 2000
 DEPTHS = (1, 5, 10, 20, 30, 50, 100)

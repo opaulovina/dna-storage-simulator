@@ -135,11 +135,13 @@ class RsHybridCorrector(Corrector):
             if len(found) == 1
         }
 
-    def correct(self, clusters: list[list[str]]) -> list[str]:
+    def receive(self, clusters: list[list[str]]) -> dict[int, list[int]]:
         if len(clusters) != self.total:
             raise ValueError(f"{len(clusters)} grupos recebidos, esperado {self.total}")
         reconstruct = RECONSTRUCTIONS[self.reconstruction]
-        columns = self.place([reconstruct(reads, SEQUENCE_LENGTH) for reads in clusters])
+        return self.place([reconstruct(reads, SEQUENCE_LENGTH) for reads in clusters if reads])
+
+    def decode(self, columns: dict[int, list[int]]) -> list[str]:
         empty = [0] * ROWS
         matrix = [list(columns.get(address, empty)) for address in range(self.total)]
         for data, extra in self.units:
@@ -159,3 +161,6 @@ class RsHybridCorrector(Corrector):
             int_to_bases(address, INDEX_LENGTH) + bytes_to_bases(to_payload(matrix[address]))
             for address in range(self.data_count)
         ]
+
+    def correct(self, clusters: list[list[str]]) -> list[str]:
+        return self.decode(self.receive(clusters))

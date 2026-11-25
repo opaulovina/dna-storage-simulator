@@ -267,6 +267,96 @@ def mafft_length_summary(diagnostic, points):
     return means.round(3), full_recovery_limit(runs)
 
 
+def organick_summary(coverage):
+    groups = coverage.groupby(["mode", "coverage"])
+    return pd.DataFrame(
+        {
+            "execucoes": groups.size(),
+            "recuperacao_completa": groups["recovery_rate"].apply(lambda rate: (rate == 1).sum()),
+            "recuperacao_media": groups["recovery_rate"].mean().round(3),
+            "resiliencia_media": groups["max_resilience"].mean().round(3),
+            "resiliencia_pior": groups["max_resilience"].max().round(3),
+            "erasures_medios": groups["erasures"].mean().round(1),
+            "sem_leituras_medio": groups["dropouts"].mean().round(1),
+        }
+    )
+
+
+def organick_figure(coverage, folder):
+    figure, axis = plt.subplots(figsize=(6.5, 4.2))
+    names = {"fixa": "cobertura fixa", "poisson": "cobertura de Poisson"}
+    for position, (mode, name) in enumerate(names.items()):
+        line = coverage[coverage["mode"] == mode].groupby("coverage")["max_resilience"]
+        low, mean, high = line.min(), line.mean(), line.max()
+        color = COLORS[position * 2]
+        axis.plot(mean.index, mean, color=color, marker=MARKERS[position], label=name, linewidth=2)
+        axis.fill_between(mean.index, low, high, color=color, alpha=0.15, linewidth=0)
+    axis.axhline(1, color=MUTED, linestyle="--", linewidth=1)
+    axis.axvspan(4, 14, color=MUTED, alpha=0.08, label="faixa de Organick et al. (4 a 14)")
+    axis.axvline(5, color=MUTED, linestyle=":", linewidth=1, label="mediana de Organick et al. (5)")
+    axis.set_ylim(0, 2)
+    axis.set_xticks(sorted(coverage["coverage"].unique()))
+    axis.legend(frameon=False, fontsize=8)
+    finish(axis, "leituras por sequência (cobertura)", "used error resilience (pior linha)")
+    save(figure, folder, "organick_cobertura")
+
+
+def frontier_figure(frontier, folder):
+    frontier = frontier.assign(share=frontier["certo"] / frontier["trials"])
+    grid = frontier.pivot_table(index="errors", columns="erasures", values="share")
+    parity = int(frontier["parity"].iloc[0])
+    figure, axis = plt.subplots(figsize=(8, 4))
+    image = axis.imshow(grid.values, cmap="Blues", vmin=0, vmax=1, aspect="auto", origin="lower")
+    edge = [(parity - 2 * errors + 0.5) for errors in grid.index]
+    axis.step(
+        edge,
+        range(len(grid.index)),
+        where="mid",
+        color=COLORS[1],
+        linewidth=2,
+        label=f"2 x erros + erasures = {parity}",
+    )
+    axis.set_xticks(range(len(grid.columns)), grid.columns, fontsize=7)
+    axis.set_yticks(range(len(grid.index)), grid.index)
+    axis.legend(frameon=False, fontsize=8, loc="upper right")
+    figure.colorbar(image, ax=axis, label="fração decodificada corretamente", shrink=0.8)
+    finish(axis, "erasures por palavra-código", "erros por palavra-código")
+    save(figure, folder, "organick_fronteira")
+
+
+def profile_summary(profile):
+    profile = profile.assign(region=profile["position"] // 20 * 20)
+    totals = profile.groupby(["error_rate", "depth", "reconstruction", "region"])[
+        ["errors", "sequences"]
+    ].sum()
+    share = (totals["errors"] / totals["sequences"]).round(4)
+    return share.unstack("region")
+
+
+def profile_figure(profile, folder):
+    totals = profile.groupby(["error_rate", "depth", "reconstruction", "position"])[
+        ["errors", "sequences"]
+    ].sum()
+    share = (totals["errors"] / totals["sequences"]).reset_index(name="share")
+    panels = list(share.groupby(["error_rate", "depth"]).groups)
+    figure, axes = plt.subplots(1, len(panels), figsize=(3.2 * len(panels), 3.4), sharey=True)
+    for axis, (rate, depth) in zip(axes, panels, strict=True):
+        for reconstruction in sorted(share["reconstruction"].unique()):
+            line = share[
+                (share["error_rate"] == rate)
+                & (share["depth"] == depth)
+                & (share["reconstruction"] == reconstruction)
+            ]
+            look = style(f"{reconstruction} (sem RS)") | {"marker": None, "linewidth": 1.5}
+            axis.plot(line["position"], line["share"], label=reconstruction, **look)
+        axis.axvline(60, color=MUTED, linestyle=":", linewidth=1)
+        axis.set_title(f"erro de {rate:.0%}, {depth} leituras", color=INK, fontsize=10)
+        finish(axis, "posição na fita", "")
+    axes[0].set_ylabel("fração de fitas com a base errada", color=MUTED)
+    axes[0].legend(frameon=False, fontsize=8)
+    save(figure, folder, "perfil_posicional")
+
+
 def by_depth(limits):
     return limits.pivot_table(index=["ids_ratio", "series"], columns="depth", values="limit")
 
@@ -277,6 +367,9 @@ def main():
     parser.add_argument("--image", type=Path, default=Path("results/final_imagem.csv"))
     parser.add_argument("--failures", type=Path, default=Path("results/falhas.csv"))
     parser.add_argument("--mafft-length", type=Path, default=Path("results/mafft_120.csv"))
+    parser.add_argument("--organick", type=Path, default=Path("results/organick_cobertura.csv"))
+    parser.add_argument("--frontier", type=Path, default=Path("results/organick_fronteira.csv"))
+    parser.add_argument("--profile", type=Path, default=Path("results/perfil_posicional.csv"))
     parser.add_argument("--output", type=Path, default=Path("results/analise"))
     args = parser.parse_args()
 
@@ -307,6 +400,21 @@ def main():
         means, length_limits = mafft_length_summary(pd.read_csv(args.mafft_length), points)
         means.to_csv(folder / "mafft_120.csv")
         by_depth(length_limits).to_csv(folder / "limites_mafft_120.csv")
+
+    if args.organick.exists():
+        if checksum(args.organick) != checksum(args.text[0]):
+            raise SystemExit(f"{args.organick} foi gerado com outro arquivo de entrada")
+        coverage = pd.read_csv(args.organick)
+        organick_summary(coverage).to_csv(folder / "organick_cobertura.csv")
+        organick_figure(coverage, folder)
+    if args.frontier.exists():
+        frontier_figure(pd.read_csv(args.frontier), folder)
+    if args.profile.exists():
+        if checksum(args.profile) != checksum(args.text[0]):
+            raise SystemExit(f"{args.profile} foi gerado com outro arquivo de entrada")
+        profile = pd.read_csv(args.profile)
+        profile_summary(profile).to_csv(folder / "perfil_posicional.csv")
+        profile_figure(profile, folder)
 
     for ratio in sorted(runs["ids_ratio"].unique()):
         recovery_figure(points, ratio, folder)

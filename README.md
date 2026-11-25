@@ -43,6 +43,28 @@ python experiments/compare_xie.py
 Compares `results/validation_xie.csv` with values transcribed by hand from Figures 1 and 2a of
 Xie et al. (2023), stored in `data/xie_figuras.csv`.
 
+## Validation of Condition B
+
+```bash
+python experiments/validate_organick.py data/abstract_3920.txt
+python experiments/positional_errors.py data/abstract_3920.txt
+```
+
+`validate_organick.py` runs BMA + RS 15% at the Illumina error regime measured by Organick et
+al. (2018) (0.64% per base, I:D:S 1:5:10) with 1 to 14 reads per sequence and 10 seeds, and
+records the "used error resilience" of every matrix row, (2 x errors + erasures) / parity. Reads
+are drawn either with a fixed depth (the channel of the main experiments) or with a Poisson
+number of reads per molecule, so that some molecules get no reads and become erasures. It also
+checks the decoder directly in GF(2^16): for every combination of 0 to 11 errors and 0 to 22
+erasures in a 161-symbol codeword with 21 parity symbols, it counts how often the message comes
+back right, how often the decoder reports a failure and how often it returns a wrong message.
+Output: `results/organick_cobertura.csv` and `results/organick_fronteira.csv`.
+
+`positional_errors.py` counts, without Reed-Solomon, how often each of the 120 positions of the
+reconstructed strand is wrong for BMA, Double-sided BMA and NW-POA (12% and 16% error, 10 and
+20 reads, 10 seeds), to compare with the error propagation described by Sharma et al. (2024).
+Output: `results/perfil_posicional.csv`.
+
 ## Pilot run
 
 Measures, on the current machine, the cost of each condition, whether running several
@@ -128,7 +150,7 @@ python experiments/analyze.py
 ```
 
 Reads the text grids (`final_texto`, `ablacao`, `reconstrucoes`), the image grid, the failure
-sites and the fixed-length MAFFT diagnostic, and writes tables (CSV) and figures (PDF and PNG) to `results/analise/`: recovery per
+sites, the fixed-length MAFFT diagnostic and the Condition B validation, and writes tables (CSV) and figures (PDF and PNG) to `results/analise/`: recovery per
 depth, full-recovery limits, Reed-Solomon gain, reconstruction variants, minimum sequencing cost
 and time per sequence. The findings are summarised (in Portuguese) in section 15 of
 [`docs/ESCOPO.txt`](docs/ESCOPO.txt).
@@ -153,7 +175,7 @@ redundancy are refused with an explanation.
 Since version 0.2.0 the outer code uses 16-bit symbols (GF(2^16)) and one long codeword per file,
 and the decoder places each reconstructed strand by the address it reads: strands with an
 address out of range or claimed twice are dropped, and every empty column is passed to the
-Reed-Solomon decoder as an erasure. Results produced with version 0.1.0 (8-bit symbols, strands
+Reed-Solomon decoder as an erasure; a molecule with no reads leaves its column empty. Results produced with version 0.1.0 (8-bit symbols, strands
 placed by the simulator) are not comparable for Condition B.
 
 ## Design decisions
