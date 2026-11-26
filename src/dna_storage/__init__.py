@@ -9,4 +9,4 @@ Compara duas condicoes de correcao sob o mesmo conjunto de leituras ruidosas:
 Ver README.md para a arquitetura e o desenho experimental.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

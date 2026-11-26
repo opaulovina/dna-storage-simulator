@@ -546,7 +546,7 @@ Conferidos contra o texto da monografia do PFC 1.
 12.1 4.4: "Corresponde diretamente ao critério de recuperação completa adotado por Xie et al.
      (2023) e Organick et al. (2018)". Xie não define a medida (6.4); reescrever.
 12.2 5.5: "recebem um conjunto de leituras ruidosas e retornam uma sequência de DNA recuperada".
-     Recebem o conjunto de todos os grupos e devolvem uma sequência por grupo (necessário para o
+     Recebem o conjunto de todos os grupos e devolvem uma sequência por molécula de dados (necessário para o
      RS da Condição B).
 12.3 "Três condições" ainda aparece na abertura do Capítulo 4 ("as três condições comparadas"),
      no fim da 4.4 ("sobre as três condições"), na 5.5 ("As três condições de correção") e no
