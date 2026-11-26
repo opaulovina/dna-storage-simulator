@@ -150,16 +150,16 @@ def show_image(data, original, width):
     if image is None:
         st.warning("O arquivo recuperado não abre como imagem.")
         return
+    if image.width < width:
+        height = round(width * image.height / image.width)
+        image = image.resize((width, height), Image.NEAREST)
+    st.image(image, width=width)
     if damaged:
         st.caption(
             "O cabeçalho do PGM (sequência 0) veio corrompido. Os pixels aparecem com as "
             "dimensões do original. O arquivo baixado pode não abrir, ou abrir com outras "
             "dimensões, num visualizador comum."
         )
-    if image.width < width:
-        height = round(width * image.height / image.width)
-        image = image.resize((width, height), Image.NEAREST)
-    st.image(image, width=width)
 
 
 # se a extensao for de imagem, tentar abrir com o pillow
