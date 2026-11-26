@@ -155,6 +155,22 @@ depth, full-recovery limits, Reed-Solomon gain, reconstruction variants, minimum
 and time per sequence. The findings are summarised (in Portuguese) in section 15 of
 [`docs/ESCOPO.txt`](docs/ESCOPO.txt).
 
+## Online app
+
+The interactive app is published on Streamlit Community Cloud:
+<https://error-correction-simulator.streamlit.app>
+
+Streamlit Community Cloud installs MAFFT from `packages.txt` and the Python packages from
+`requirements.txt` (the pinned versions in `requirements-lock.txt` plus this package). With
+`data/abstract_3920.txt` and the default settings (8% error, 10 reads, 1:1:1, seed 0, BMA and
+15% redundancy), the online app returns the same recovery rates as the main grid for that run
+(0.5071 for MAFFT and 0.85 for BMA + RS 15%). The app goes to sleep after a while without visits,
+and the first visit wakes it up. The installation log of the published app is in
+[`docs/log_streamlit_cloud.txt`](docs/log_streamlit_cloud.txt): Debian 13 (trixie), Python 3.12.16,
+MAFFT 7.505 (Debian package 7.505-1) and the pinned packages, except pyarrow, which Streamlit
+replaces with 24.0.0 and which is not used by the simulation or the metrics. A user guide (in
+Portuguese) is in [`docs/guia_do_app.pdf`](docs/guia_do_app.pdf).
+
 ## Interactive app
 
 ```bash
