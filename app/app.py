@@ -88,7 +88,6 @@ def duration(seconds):
 
 # le largura e altura do cabecalho do original com uma expressao regular
 # depois monta a imagem com os bytes recuperados que vem depois do cabecalho
-# so é usada quando o arquivo recuperado nao abre
 def pgm_pixels(recovered, original):
     header = PGM_HEADER.match(original)
     if header is None:
@@ -134,18 +133,28 @@ def kind(name, original):
     return "text"
 
 
-def show_image(data, original, width):
+def open_image(data, original):
+    header = PGM_HEADER.match(original)
+    if header and data[: header.end()] != original[: header.end()]:
+        return pgm_pixels(data, original), True
     try:
         image = Image.open(io.BytesIO(data))
         image.load()
+        return image, False
     except Exception:
-        image = pgm_pixels(data, original)
-        if image is None:
-            st.warning("O arquivo recuperado não abre como imagem.")
-            return
+        return pgm_pixels(data, original), True
+
+
+def show_image(data, original, width):
+    image, damaged = open_image(data, original)
+    if image is None:
+        st.warning("O arquivo recuperado não abre como imagem.")
+        return
+    if damaged:
         st.caption(
             "O cabeçalho do PGM (sequência 0) veio corrompido. Os pixels aparecem com as "
-            "dimensões do original; o arquivo baixado não abre num visualizador comum."
+            "dimensões do original. O arquivo baixado pode não abrir, ou abrir com outras "
+            "dimensões, num visualizador comum."
         )
     if image.width < width:
         height = round(width * image.height / image.width)

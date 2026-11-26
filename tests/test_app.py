@@ -71,6 +71,22 @@ def test_pgm_pixels_survive_a_corrupted_header():
     assert image.tobytes() == bytes([10, 20, 30, 40])
 
 
+def test_a_valid_but_wrong_pgm_header_keeps_the_original_dimensions():
+    original = b"P5\n4 2\n255\n" + bytes(range(8))
+    shifted = b"P5\n4 1\n255\n" + bytes(range(8))
+    image, damaged = app_module.open_image(shifted, original)
+    assert damaged
+    assert image.size == (4, 2)
+    assert image.tobytes() == bytes(range(8))
+
+
+def test_an_intact_image_opens_normally():
+    original = b"P5\n4 2\n255\n" + bytes(range(8))
+    image, damaged = app_module.open_image(original, original)
+    assert not damaged
+    assert image.size == (4, 2)
+
+
 def test_condition_b_refuses_more_molecules_than_the_index_addresses():
     app = AppTest.from_file(str(APP), default_timeout=60).run()
     big = bytes(60_000 * 28)
