@@ -43,7 +43,7 @@ def test_empty_and_oversized_files_are_refused():
     assert "vazio" in app.sidebar.error[0].value
     big = bytes(app_module.MAX_BYTES + 1)
     app.sidebar.file_uploader[0].set_value(("grande.bin", big, "application/octet-stream")).run()
-    assert "1,75 MB" in app.sidebar.error[0].value
+    assert "1,75 MiB" in app.sidebar.error[0].value
 
 
 def test_footer_is_at_the_bottom_of_the_sidebar():

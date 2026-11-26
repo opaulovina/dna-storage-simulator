@@ -161,7 +161,7 @@ and time per sequence. The findings are summarised (in Portuguese) in section 15
 streamlit run app/app.py
 ```
 
-Upload any file up to 1.75 MB (the 8-base index addresses at most 4^8 = 65,536 sequences of
+Upload any file up to 1.75 MiB (the 8-base index addresses at most 4^8 = 65,536 sequences of
 28 bytes) and choose the error rate, sequencing depth, I:D:S weights, seed, the reconstruction
 used by Condition B (BMA, Double-sided BMA or NW-POA) and the Reed-Solomon redundancy. The app
 runs both conditions on the same noisy reads, shows the metrics side by side, maps which

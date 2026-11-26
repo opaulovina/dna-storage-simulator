@@ -101,7 +101,7 @@ def pgm_pixels(recovered, original):
 # na barra lateral, envia um arquivo
 def choose_input():
     upload = st.sidebar.file_uploader("Arquivo")
-    st.sidebar.caption("Qualquer formato, até 1,75 MB.")
+    st.sidebar.caption("Qualquer formato, até 1,75 MiB.")
     if upload is None:
         return None, None
     data = upload.getvalue()
@@ -110,7 +110,7 @@ def choose_input():
         return None, None
     if len(data) > MAX_BYTES:
         st.sidebar.error(
-            "O arquivo passa de 1,75 MB. O índice de 8 bases numera no máximo 65.536 sequências "
+            "O arquivo passa de 1,75 MiB. O índice de 8 bases numera no máximo 65.536 sequências "
             "de 28 bytes."
         )
         return None, None
